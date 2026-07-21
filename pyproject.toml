@@ -1,0 +1,25 @@
+[project]
+name = "supply-chain-planning-lab"
+version = "0.1.0"
+description = "An educational pipeline that prepares economic data for future supply-chain planning exercises."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "python-dotenv>=1.1.0",
+    "requests>=2.32.0",
+]
+
+[project.scripts]
+planning-lab = "supply_chain_planning_lab.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.11.28,<0.12.0"]
+build-backend = "uv_build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
