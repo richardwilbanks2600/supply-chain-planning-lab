@@ -20,6 +20,19 @@ The project should remain understandable to the learner building it. Planning ru
 
 This establishes the data workflow. Building permits are an external market indicator, not customer orders or a company forecast.
 
+## Practicum hardening and local interface
+
+**Status:** Implemented
+
+- Validate incoming FRED fields with Pydantic before transformation.
+- Test successful and failed external-service behavior with fixtures and mocks.
+- Preserve raw outside evidence before validation.
+- Add optional console and file logging without exposing secrets.
+- Give the CLI and local Streamlit dashboard one shared workflow.
+
+This practicum milestone improves trust and usability without adding production
+planning logic or changing the meaning of the external indicator.
+
 ## Milestone 2: Validate and describe the data
 
 **Learning focus:** Data quality, validation, and descriptive analysis

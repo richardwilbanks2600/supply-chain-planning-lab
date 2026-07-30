@@ -1,0 +1,15 @@
+{
+  "observations": [
+    {
+      "date": "not-a-date",
+      "value": "1367.0"
+    },
+    {
+      "date": "2026-06-01",
+      "value": "not-a-number"
+    },
+    {
+      "value": "1400.0"
+    }
+  ]
+}

@@ -1,9 +1,12 @@
 .env
 .venv/
 data/
+logs/
 __pycache__/
 *.py[cod]
 .pytest_cache/
 .pytest-tmp/
+.coverage
+htmlcov/
 .ruff_cache/
 .uv-cache/
