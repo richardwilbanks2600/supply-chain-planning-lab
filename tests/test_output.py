@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 
 from supply_chain_planning_lab.output import (
     create_output_paths,
+    processed_csv_text,
     write_processed_csv,
     write_raw_response,
 )
@@ -37,3 +38,4 @@ def test_output_files_preserve_raw_text_and_write_inspectable_csv(tmp_path) -> N
                 "unit": "thousands_of_units_saar",
             }
         ]
+    assert "series_id,period,value,unit" in processed_csv_text(records)

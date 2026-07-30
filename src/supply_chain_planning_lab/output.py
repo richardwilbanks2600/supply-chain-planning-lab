@@ -3,6 +3,7 @@
 import csv
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from io import StringIO
 from pathlib import Path
 from typing import Iterable
 
@@ -50,3 +51,13 @@ def write_processed_csv(
         writer = csv.DictWriter(csv_file, fieldnames=CSV_FIELDS)
         writer.writeheader()
         writer.writerows(records)
+
+
+def processed_csv_text(records: Iterable[ProcessedObservation]) -> str:
+    """Serialize processed observations for browser download."""
+
+    csv_text = StringIO(newline="")
+    writer = csv.DictWriter(csv_text, fieldnames=CSV_FIELDS)
+    writer.writeheader()
+    writer.writerows(records)
+    return csv_text.getvalue()

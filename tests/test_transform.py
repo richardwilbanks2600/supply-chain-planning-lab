@@ -40,5 +40,5 @@ def test_transform_observations_normalizes_records_and_skips_missing_values() ->
 
 
 def test_transform_observations_rejects_invalid_shape() -> None:
-    with pytest.raises(DataTransformError, match="observations list"):
+    with pytest.raises(DataTransformError, match="validation failed"):
         transform_observations({}, series_id="PERMIT")

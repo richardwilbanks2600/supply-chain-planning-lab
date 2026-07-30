@@ -1,12 +1,14 @@
 [project]
 name = "supply-chain-planning-lab"
-version = "0.1.0"
+version = "0.2.0"
 description = "An educational pipeline that prepares economic data for future supply-chain planning exercises."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "pydantic>=2.13.4",
     "python-dotenv>=1.1.0",
     "requests>=2.32.0",
+    "streamlit>=1.54.0",
 ]
 
 [project.scripts]
@@ -15,11 +17,15 @@ planning-lab = "supply_chain_planning_lab.cli:main"
 [dependency-groups]
 dev = [
     "pytest>=8.4.0",
+    "pytest-cov>=7.0.0",
 ]
 
 [build-system]
-requires = ["uv_build>=0.11.28,<0.12.0"]
-build-backend = "uv_build"
+requires = ["hatchling>=1.27.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/supply_chain_planning_lab"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
