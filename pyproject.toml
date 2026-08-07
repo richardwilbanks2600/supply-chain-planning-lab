@@ -1,6 +1,6 @@
 [project]
 name = "supply-chain-planning-lab"
-version = "0.2.0"
+version = "0.3.0"
 description = "An educational pipeline that prepares economic data for future supply-chain planning exercises."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -29,3 +29,4 @@ packages = ["src/supply_chain_planning_lab"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = ["--basetemp=.pytest-tmp"]

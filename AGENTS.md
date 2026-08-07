@@ -4,12 +4,13 @@
 
 Build an educational supply-chain planning tool in small, reviewable increments. The learner owns business and planning decisions; Codex may implement approved decisions but must keep important assumptions visible and explainable.
 
-## Current sprint boundary
+## Current milestone boundary
 
-Sprint 2 hardens the existing FRED workflow with controlled tests, Pydantic
-validation, configurable logging, and a local Streamlit dashboard as defined in
-`docs/specs/sprint-02-practicum-hardening.md`. Do not add forecasting,
-production planning, optimization, a database, or deployment.
+Milestone 2 is implemented as defined in
+`docs/specs/milestone-02-data-inspection.md`. Do not begin Milestone 3 until its
+fictional products, customers, time horizon, and meaning of demand have been
+reviewed and approved. Do not add forecasting, production planning,
+optimization, a database, or deployment.
 
 ## Architecture
 
@@ -18,6 +19,7 @@ production planning, optimization, a database, or deployment.
 - `output.py` owns generated raw and processed files.
 - `metadata.py` reports setup state without making an API call or exposing secrets.
 - `models.py` validates data received from FRED before transformation.
+- `inspection.py` validates, filters, and describes processed observations.
 - `workflow.py` coordinates shared fetch and transformation logic for both interfaces.
 - `logging_config.py` owns optional console and file logging.
 - `cli.py` defines the user-facing command and coordinates the workflow.
@@ -32,6 +34,7 @@ uv sync
 uv run planning-lab --help
 uv run planning-lab project-info
 uv run planning-lab fetch --start-date 2020-01-01
+uv run planning-lab inspect data/processed/fred_permit_<timestamp>.csv
 uv run planning-lab --verbose --log-file logs/planning-lab.log fetch
 uv run streamlit run src/supply_chain_planning_lab/dashboard.py
 uv run pytest
@@ -43,6 +46,7 @@ uv run pytest
 - Use fixture responses for transformation and output tests.
 - Use controlled mocks for successful and failed FRED behavior.
 - Preserve a raw response before validating or transforming it.
+- Keep descriptive measures separate from forecasts and planning assumptions.
 - Never print, log, fixture, or commit an API key.
 - Keep `.env`, `.venv/`, and generated `data/` files ignored.
 - Before adding planning logic, document the concept, assumptions, and a manually verifiable example.

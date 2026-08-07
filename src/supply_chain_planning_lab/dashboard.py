@@ -10,6 +10,7 @@ import streamlit as st
 
 from supply_chain_planning_lab.api import FredApiError
 from supply_chain_planning_lab.cli import DEFAULT_START_DATE, SERIES_ID
+from supply_chain_planning_lab.inspection import summarize_records
 from supply_chain_planning_lab.logging_config import configure_logging
 from supply_chain_planning_lab.output import processed_csv_text
 from supply_chain_planning_lab.transform import DataTransformError, ProcessedObservation
@@ -91,6 +92,7 @@ def _render_result(result: PlanningResult) -> None:
     """Display summaries, exploration controls, a chart, and trusted rows."""
 
     records = list(result.records)
+    summary = summarize_records(records)
     st.subheader("Validated observations")
 
     total, missing, latest, change = st.columns(4)
@@ -102,9 +104,28 @@ def _render_result(result: PlanningResult) -> None:
         help="Thousands of units at a seasonally adjusted annual rate.",
     )
     change.metric(
-        "Latest monthly change",
+        "Latest valid-observation change",
         _latest_change_label(records),
-        help="Latest value minus the preceding monthly observation.",
+        help="Latest value minus the preceding valid observation; gaps may span months.",
+    )
+
+    minimum, maximum, trailing_average = st.columns(3)
+    minimum.metric(
+        "Minimum",
+        f"{summary.minimum:,.1f}" if summary.minimum is not None else "None",
+    )
+    maximum.metric(
+        "Maximum",
+        f"{summary.maximum:,.1f}" if summary.maximum is not None else "None",
+    )
+    trailing_average.metric(
+        f"Trailing average ({summary.trailing_count})",
+        (
+            f"{summary.trailing_average:,.1f}"
+            if summary.trailing_average is not None
+            else "None"
+        ),
+        help="Arithmetic mean of up to the latest 12 valid observations; not a forecast.",
     )
 
     st.download_button(
@@ -168,9 +189,9 @@ def _records_for_display(
 def _latest_change_label(records: list[ProcessedObservation]) -> str:
     """Format the difference between the two most recent usable observations."""
 
-    if len(records) < 2:
+    change = summarize_records(records).latest_change
+    if change is None:
         return "Not available"
-    change = records[-1]["value"] - records[-2]["value"]
     return f"{change:+,.1f}"
 
 

@@ -11,6 +11,13 @@ from typing import Sequence
 from dotenv import load_dotenv
 
 from .api import FredApiError
+from .inspection import (
+    ProcessedDataError,
+    filter_records,
+    inspect_quality,
+    read_processed_csv,
+    summarize_records,
+)
 from .logging_config import LoggingSetupError, configure_logging
 from .metadata import project_info
 from .output import create_output_paths, write_processed_csv, write_raw_response
@@ -33,6 +40,30 @@ def iso_date(value: str) -> str:
             "expected an ISO date in YYYY-MM-DD format"
         ) from exc
     return value
+
+
+def month_period(value: str) -> str:
+    """Validate a CLI month and return its canonical representation."""
+
+    try:
+        parsed = datetime.strptime(value, "%Y-%m")
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("expected a month in YYYY-MM format") from exc
+    if parsed.strftime("%Y-%m") != value:
+        raise argparse.ArgumentTypeError("expected a month in YYYY-MM format")
+    return value
+
+
+def positive_integer(value: str) -> int:
+    """Validate a positive integer CLI option."""
+
+    try:
+        parsed = int(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("expected a positive integer") from exc
+    if parsed < 1:
+        raise argparse.ArgumentTypeError("expected a positive integer")
+    return parsed
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -82,6 +113,35 @@ def build_parser() -> argparse.ArgumentParser:
         help=f"Generated-data directory (default: {DEFAULT_OUTPUT_DIR}).",
     )
 
+    inspect_parser = subparsers.add_parser(
+        "inspect",
+        help="Validate, filter, and describe a processed PERMIT CSV.",
+    )
+    inspect_parser.add_argument(
+        "input_csv",
+        type=Path,
+        metavar="CSV",
+        help="processed CSV file to inspect",
+    )
+    inspect_parser.add_argument(
+        "--start-period",
+        type=month_period,
+        default=None,
+        help="first month to include, in YYYY-MM format",
+    )
+    inspect_parser.add_argument(
+        "--end-period",
+        type=month_period,
+        default=None,
+        help="last month to include, in YYYY-MM format",
+    )
+    inspect_parser.add_argument(
+        "--limit",
+        type=positive_integer,
+        default=None,
+        help="maximum rows to list after filtering (default: all)",
+    )
+
     return parser
 
 
@@ -119,6 +179,88 @@ def run_fetch(*, start_date: str, output_dir: Path, api_key: str) -> int:
     return 0
 
 
+def run_inspect(
+    *,
+    input_csv: Path,
+    start_period: str | None,
+    end_period: str | None,
+    limit: int | None,
+) -> int:
+    """Validate and describe one previously processed CSV file."""
+
+    try:
+        records = read_processed_csv(input_csv)
+        report = inspect_quality(records)
+        selected = filter_records(
+            records,
+            start_period=start_period,
+            end_period=end_period,
+        )
+    except (OSError, UnicodeError, ProcessedDataError) as exc:
+        logger.error("Processed-data inspection failed: %s", exc)
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+
+    print(f"File: {input_csv}")
+    print(f"Quality status: {report.status}")
+    print(f"Source records: {report.record_count}")
+    coverage = (
+        f"{report.first_period} through {report.last_period}"
+        if report.first_period and report.last_period
+        else "none"
+    )
+    print(f"Source coverage: {coverage}")
+    print(f"Chronological source order: {'yes' if report.chronological else 'no'}")
+    print(f"Duplicate periods: {_period_list(report.duplicate_periods)}")
+    print(f"Missing calendar months: {_period_list(report.missing_periods)}")
+    print(f"Selected records: {len(selected)}")
+
+    if report.duplicate_periods:
+        print("Descriptive measures: unavailable until duplicate periods are resolved")
+    else:
+        summary = summarize_records(selected)
+        print(f"Minimum: {_number(summary.minimum)}")
+        print(f"Maximum: {_number(summary.maximum)}")
+        print(f"Latest: {_number(summary.latest)}")
+        print(f"Latest change: {_signed_number(summary.latest_change)}")
+        print(
+            f"Trailing average ({summary.trailing_count} valid observations): "
+            f"{_number(summary.trailing_average)}"
+        )
+
+    displayed = selected[:limit] if limit is not None else selected
+    print(f"Listed records: {len(displayed)}")
+    print("series_id,period,value,unit")
+    for record in displayed:
+        print(
+            f"{record['series_id']},{record['period']},{record['value']},"
+            f"{record['unit']}"
+        )
+    return 1 if report.duplicate_periods else 0
+
+
+def _period_list(periods: Sequence[str]) -> str:
+    """Format detected periods without overwhelming the console."""
+
+    if not periods:
+        return "none"
+    visible = list(periods[:12])
+    suffix = f" (+{len(periods) - 12} more)" if len(periods) > 12 else ""
+    return ", ".join(visible) + suffix
+
+
+def _number(value: float | None) -> str:
+    """Format an optional observation value."""
+
+    return "not available" if value is None else f"{value:,.1f}"
+
+
+def _signed_number(value: float | None) -> str:
+    """Format an optional difference with an explicit sign."""
+
+    return "not available" if value is None else f"{value:+,.1f}"
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the command-line interface."""
 
@@ -136,7 +278,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     logger.debug(
         "Starting command=%s output_dir=%s key_configured=%s.",
         args.command,
-        args.output_dir,
+        getattr(args, "output_dir", None),
         bool(api_key),
     )
 
@@ -144,6 +286,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         logger.info("Reporting project setup without calling FRED.")
         print(project_info(api_key_configured=bool(api_key), output_dir=args.output_dir))
         return 0
+
+    if args.command == "inspect":
+        logger.info("Inspecting processed observations from %s.", args.input_csv)
+        return run_inspect(
+            input_csv=args.input_csv,
+            start_period=args.start_period,
+            end_period=args.end_period,
+            limit=args.limit,
+        )
 
     if not api_key:
         logger.warning("Fetch command stopped because FRED_API_KEY is not configured.")

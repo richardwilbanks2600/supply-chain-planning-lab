@@ -35,6 +35,10 @@ planning logic or changing the meaning of the external indicator.
 
 ## Milestone 2: Validate and describe the data
 
+**Status:** Implemented
+
+**Specification:** `docs/specs/milestone-02-data-inspection.md`
+
 **Learning focus:** Data quality, validation, and descriptive analysis
 
 Potential outcomes:
@@ -46,6 +50,11 @@ Potential outcomes:
 - Document what seasonally adjusted annual rate means and what the series cannot tell us.
 
 Decision gate: agree on which descriptive measures are useful before implementing them.
+
+The implemented measures are minimum, maximum, latest value, latest
+valid-observation change, and the average of up to the trailing 12 valid
+observations. Their definitions and limitations are documented in the
+milestone specification.
 
 ## Milestone 3: Introduce a fictional demand scenario
 

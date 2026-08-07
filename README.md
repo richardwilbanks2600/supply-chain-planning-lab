@@ -20,6 +20,8 @@ orders, company demand, or a forecast.
 - Validate outside data with Pydantic before transforming it.
 - Normalize valid observations into inspectable CSV records.
 - Skip and report FRED's `.` missing-value marker.
+- Validate, filter, list, and transparently describe processed CSV records.
+- Detect duplicate periods, missing calendar months, and unexpected row order.
 - Write optional operational logs to the console and detailed logs to a file.
 - Explore the same validated records in a local Streamlit dashboard.
 - Test success and failure behavior with fixtures and mocks instead of live API
@@ -107,7 +109,38 @@ Display command help:
 ```shell
 uv run planning-lab --help
 uv run planning-lab fetch --help
+uv run planning-lab inspect --help
 ```
+
+### Processed-data inspection
+
+Inspect a CSV created by the fetch command without an API key or network call:
+
+```shell
+uv run planning-lab inspect data/processed/fred_permit_<timestamp>.csv
+```
+
+Filter to an inclusive month range and limit the listed rows:
+
+```shell
+uv run planning-lab inspect data/processed/fred_permit_<timestamp>.csv \
+  --start-period 2024-01 \
+  --end-period 2025-12 \
+  --limit 12
+```
+
+Inspection validates the exact CSV schema, the `PERMIT` series identifier,
+canonical `YYYY-MM` periods, finite numeric values, and the
+`thousands_of_units_saar` unit. Duplicate periods fail inspection because the
+project has no rule for choosing between them. Missing months and
+nonchronological source rows are reported as warnings rather than silently
+filled or changed.
+
+For the selected records, the command reports minimum, maximum, latest value,
+latest change, and the arithmetic mean of up to the latest 12 valid
+observations. These measures describe historical values; they are not a trend
+classification or forecast. The exact rules and a manual example are in
+[`docs/specs/milestone-02-data-inspection.md`](docs/specs/milestone-02-data-inspection.md).
 
 ### Logging
 
@@ -153,8 +186,8 @@ the dashboard:
 
 1. Choose the first observation date.
 2. Select **Load validated FRED data**.
-3. Review the valid and skipped record counts, latest value, and latest monthly
-   change.
+3. Review the valid and skipped record counts plus the approved descriptive
+   measures.
 4. Choose how many recent observations to display and their table order.
 5. Inspect the trend chart and trusted detail rows.
 6. Download the raw JSON evidence or validated CSV records if useful.
@@ -164,6 +197,18 @@ not copy API requests, validation rules, or transformation logic into the user
 interface.
 
 The dashboard runs locally for this project. Deployment is not required.
+
+## Understanding the unit
+
+FRED reports `PERMIT` in thousands of housing units at a seasonally adjusted
+annual rate (SAAR). For example, `1,500.0` describes an annualized pace of
+approximately 1.5 million units after seasonal adjustment. It does not mean
+1.5 million permits were issued in that single month.
+
+Building permits do not identify this project's future fictional products,
+customers, orders, inventory, suppliers, or production capacity. The indicator
+and its summaries cannot establish causation, predict future values, or be used
+as company demand without a separately documented and approved model.
 
 ## Tests and verification
 
@@ -189,6 +234,7 @@ key and do not contact the live FRED service. The suite covers:
 - valid and invalid incoming data;
 - raw-response preservation before validation;
 - transformation and CSV output;
+- processed-CSV validation, quality detection, filtering, and descriptive measures;
 - console and file logging without secret disclosure;
 - a no-network CLI smoke check; and
 - a no-network Streamlit startup check.
@@ -201,24 +247,25 @@ file, chart, and table.
 
 ```text
 .
-├── docs/
-│   └── specs/                  # sprint scope and acceptance criteria
-├── src/supply_chain_planning_lab/
-│   ├── api.py                  # FRED HTTP boundary
-│   ├── cli.py                  # command-line interface
-│   ├── dashboard.py            # local Streamlit interface
-│   ├── logging_config.py       # console and file logging setup
-│   ├── metadata.py             # safe project setup information
-│   ├── models.py               # Pydantic runtime validation
-│   ├── output.py               # raw JSON and processed CSV output
-│   ├── transform.py            # trusted project-record transformation
-│   └── workflow.py             # logic shared by CLI and dashboard
-├── tests/
-│   ├── fixtures/               # stable valid and invalid FRED examples
-│   └── test_*.py               # unit, boundary, workflow, and smoke tests
-├── .env.example
-├── pyproject.toml
-└── uv.lock
+|-- docs/
+|   `-- specs/                  # milestone scope and acceptance criteria
+|-- src/supply_chain_planning_lab/
+|   |-- api.py                 # FRED HTTP boundary
+|   |-- cli.py                 # command-line interface
+|   |-- dashboard.py           # local Streamlit interface
+|   |-- inspection.py          # processed-data quality and descriptions
+|   |-- logging_config.py      # console and file logging setup
+|   |-- metadata.py            # safe project setup information
+|   |-- models.py              # Pydantic runtime validation
+|   |-- output.py              # raw JSON and processed CSV output
+|   |-- transform.py           # trusted project-record transformation
+|   `-- workflow.py            # logic shared by CLI and dashboard
+|-- tests/
+|   |-- fixtures/              # stable valid and invalid FRED examples
+|   `-- test_*.py              # unit, boundary, workflow, and smoke tests
+|-- .env.example
+|-- pyproject.toml
+`-- uv.lock
 ```
 
 Generated `data/` and `logs/` directories are ignored by Git. Small stable test
