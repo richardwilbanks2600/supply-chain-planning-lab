@@ -56,7 +56,7 @@ valid-observation change, and the average of up to the trailing 12 valid
 observations. Their definitions and limitations are documented in the
 milestone specification.
 
-## Milestone 3: Introduce a fictional demand scenario
+## Milestone 3: Translate a market signal into fictional demand
 
 **Status:** Implemented
 
@@ -64,21 +64,22 @@ milestone specification.
 
 **Learning focus:** External signals versus internal demand
 
-Potential outcomes:
+Implemented outcomes:
 
-- Create a small fictional product catalog for a building-components manufacturer.
-- Add synthetic historical demand or customer-order data.
-- Keep external market indicators separate from internal operational data.
-- Explore, without overstating, whether the external series could inform a demand assumption.
-- Present the data and assumptions in an inspectable report or dashboard view.
+- Package a validated 2000-2025 FRED source snapshot.
+- Create a small fictional product and customer catalog.
+- Translate the market pace into demand with inspectable assumptions.
+- Keep FRED source values and derived internal units clearly labeled.
+- Present source lineage and adjustable assumptions in the dashboard.
 
 Decision gate: define the fictional products, customers, time horizon, and meaning of demand.
 
-The approved scenario uses three building-component products and three
-fictional customers over January 2024 through December 2025. Internal demand
-is gross accepted order units minus cancellations, assigned to the requested
-ship month. The complete synthetic history is stored as a static,
-version-controlled CSV and is never calculated from the FRED indicator.
+The revised scenario packages FRED `PERMIT` observations from January 2000
+through December 2025 and converts their market pace into fictional internal
+demand. The model applies a visible three-month lag, company market share,
+product units per home, and customer allocations. The dashboard exposes these
+business assumptions as sliders. Cancellations are currently zero, and every
+derived record retains its FRED source lineage.
 
 ## Milestone 4: Forecasting and forecast performance
 
@@ -136,7 +137,7 @@ Potential outcomes:
 
 Decision gate: agree on the capacity model and scheduling assumptions before attempting optimization.
 
-## Milestone 8: Teaching dashboard and handoff
+## Milestone 8: Teaching dashboard integration
 
 **Learning focus:** Communicating decisions and trade-offs
 
@@ -146,9 +147,33 @@ Potential outcomes:
 - Let learners inspect inputs, calculations, assumptions, and exceptions.
 - Compare scenarios involving service, inventory, and production efficiency.
 - Automate relevant checks and data collection.
-- Complete documentation, packaging, and public-project handoff.
+- Integrate the complete planning workflow into a consistent local interface.
 
 Decision gate: define the dashboard audience and the decisions each view should support.
+
+## Milestone 9: Guided explanations, glossary, and handoff
+
+**Learning focus:** Making planning terminology and calculations independently understandable
+
+Potential outcomes:
+
+- Create one maintained terminology registry covering every dashboard term,
+  unit, metric, assumption, and formula.
+- Add concise tooltips beside controls and metrics for definitions that fit in
+  one or two sentences.
+- Add **What does this mean?** popovers for formulas, manual examples, source
+  lineage, and common interpretation mistakes.
+- Add a dedicated searchable **Learning Guide** page containing the complete
+  glossary and links back to relevant dashboard sections.
+- Use modal dialogs only for optional guided walkthroughs that benefit from a
+  focused, step-by-step explanation.
+- Verify that wording is consistent across the dashboard, CLI, specifications,
+  and learner documentation.
+- Complete accessibility review, packaging, and public-project handoff.
+
+Decision gate: approve the learner audience, reading level, definition list,
+and rule for choosing between a tooltip, popover, walkthrough, or glossary
+entry.
 
 ## Working principles
 

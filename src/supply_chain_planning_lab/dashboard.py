@@ -12,10 +12,13 @@ from supply_chain_planning_lab.api import FredApiError
 from supply_chain_planning_lab.cli import DEFAULT_START_DATE, SERIES_ID
 from supply_chain_planning_lab.demand import (
     CUSTOMERS,
+    DEFAULT_LAG_MONTHS,
     PRODUCTS,
+    DemandAssumptions,
     DemandDataError,
     filter_demand,
-    load_static_demand,
+    generate_demand,
+    load_fred_snapshot,
     monthly_demand,
     summarize_demand,
 )
@@ -41,8 +44,8 @@ def main() -> None:
 
     st.title("Supply Chain Planning Lab")
     st.write(
-        "Compare a fixed fictional customer-demand scenario with a separately "
-        "validated external construction-market indicator."
+        "Translate a fixed FRED market history into an interactive fictional "
+        "customer-demand scenario with visible assumptions."
     )
     demand_tab, external_tab = st.tabs(
         ("Internal demand", "External market indicator")
@@ -54,22 +57,78 @@ def main() -> None:
 
 
 def _render_internal_demand() -> None:
-    """Render the validated static scenario without contacting FRED."""
+    """Render a deterministic scenario from the fixed FRED snapshot."""
 
-    st.header("Static internal demand")
+    st.header("FRED-driven internal demand")
     st.write(
-        "These fictional order records are stored in a version-controlled CSV. "
-        "Dashboard reruns load the same values; they do not generate demand."
+        "The source is a fixed FRED PERMIT snapshot covering 2000 through 2025. "
+        "Sliders change visible business assumptions; no random values are used."
     )
     st.caption(
-        "Internal demand = gross ordered units - cancelled units, assigned to "
-        "the customer's requested ship month."
+        f"A permit month's seasonally adjusted annual pace drives demand "
+        f"{DEFAULT_LAG_MONTHS} months later. Cancellations are assumed to be zero."
+    )
+
+    st.subheader("Scenario assumptions")
+    market_share_percent = st.slider(
+        "Company market share (%)",
+        min_value=0.01,
+        max_value=1.00,
+        value=0.10,
+        step=0.01,
+        format="%.2f%%",
+        help="Share of the national monthly housing pace addressable by the company.",
+    )
+    allocation_cuts = st.slider(
+        "Customer allocation boundaries (%)",
+        min_value=0,
+        max_value=100,
+        value=(50, 80),
+        step=1,
+        help=(
+            "First handle allocates Building Houses Company. The distance between "
+            "handles allocates Building Supply Company. The remainder goes to "
+            "Building Remodeler."
+        ),
+    )
+    houses_percent, cumulative_supply_percent = allocation_cuts
+    supply_percent = cumulative_supply_percent - houses_percent
+    remodeler_percent = 100 - cumulative_supply_percent
+    allocations = {
+        "Building Houses Company": houses_percent / 100,
+        "Building Supply Company": supply_percent / 100,
+        "Building Remodeler": remodeler_percent / 100,
+    }
+    st.caption(
+        "Allocation: "
+        f"Building Houses Company {houses_percent}% | "
+        f"Building Supply Company {supply_percent}% | "
+        f"Building Remodeler {remodeler_percent}%"
+    )
+
+    small_window, large_window, exterior_door = st.columns(3)
+    with small_window:
+        win_2436 = st.slider("24 x 36 windows per home", 0, 20, 6, 1)
+    with large_window:
+        win_3648 = st.slider("36 x 48 windows per home", 0, 20, 4, 1)
+    with exterior_door:
+        door_3680 = st.slider("Exterior doors per home", 0, 5, 1, 1)
+
+    assumptions = DemandAssumptions(
+        market_share_percent=market_share_percent,
+        customer_allocations=allocations,
+        units_per_home={
+            "WIN-2436": float(win_2436),
+            "WIN-3648": float(win_3648),
+            "DOOR-3680": float(door_3680),
+        },
     )
     try:
-        records = load_static_demand()
+        fred_records = load_fred_snapshot()
+        records = generate_demand(fred_records, assumptions)
     except (OSError, UnicodeError, DemandDataError) as exc:
-        logger.error("Static demand could not be loaded: %s", exc)
-        st.error(f"Static demand could not be loaded: {exc}")
+        logger.error("FRED-driven demand could not be calculated: %s", exc)
+        st.error(f"FRED-driven demand could not be calculated: {exc}")
         return
 
     customer_choice = st.selectbox(
@@ -85,10 +144,21 @@ def _render_internal_demand() -> None:
     )
     summary = summarize_demand(selected)
 
-    gross, cancelled, demand = st.columns(3)
-    gross.metric("Gross ordered units", f"{summary.gross_order_units:,}")
-    cancelled.metric("Cancelled units", f"{summary.cancelled_units:,}")
+    source, months, demand = st.columns(3)
+    source.metric("FRED source months", len(fred_records))
+    months.metric("Derived demand months", len({row["period"] for row in selected}))
     demand.metric("Internal demand units", f"{summary.demand_units:,}")
+
+    st.subheader("FRED PERMIT source")
+    st.line_chart(
+        [
+            {"period": record["period"], "permit_saar": record["value"]}
+            for record in fred_records
+        ],
+        x="period",
+        y="permit_saar",
+    )
+    st.caption("Thousands of housing units at a seasonally adjusted annual rate.")
 
     st.subheader("Monthly internal demand")
     st.line_chart(monthly_demand(selected), x="period", y="demand_units")
@@ -100,15 +170,25 @@ def _render_internal_demand() -> None:
         width="stretch",
         column_config={
             "period": "Requested ship month",
+            "fred_period": "Source FRED month",
+            "fred_value_saar_thousands": st.column_config.NumberColumn(
+                "FRED value (thousands, SAAR)", format="%.1f"
+            ),
+            "monthly_housing_pace": st.column_config.NumberColumn(
+                "Monthly housing pace", format="%.1f"
+            ),
+            "company_market_share_percent": st.column_config.NumberColumn(
+                "Company share (%)", format="%.2f"
+            ),
             "customer": "Customer",
             "customer_type": "Customer type",
+            "customer_allocation_percent": st.column_config.NumberColumn(
+                "Customer allocation (%)", format="%.1f"
+            ),
             "product_sku": "Product SKU",
             "product_name": "Product",
-            "gross_order_units": st.column_config.NumberColumn(
-                "Gross orders", format="%d"
-            ),
-            "cancelled_units": st.column_config.NumberColumn(
-                "Cancelled", format="%d"
+            "units_per_home": st.column_config.NumberColumn(
+                "Units per home", format="%.1f"
             ),
             "demand_units": st.column_config.NumberColumn(
                 "Internal demand", format="%d"

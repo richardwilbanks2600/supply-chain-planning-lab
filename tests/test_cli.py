@@ -131,8 +131,7 @@ def test_demand_command_loads_fixed_data_without_an_api_key(
 
     captured = capsys.readouterr()
     assert exit_code == 0
-    assert "Generation: none" in captured.out
+    assert "Source: fixed FRED PERMIT snapshot" in captured.out
     assert "Selected records: 1" in captured.out
-    assert "Gross ordered units: 87" in captured.out
-    assert "Cancelled units: 3" in captured.out
-    assert "Internal demand units: 84" in captured.out
+    assert "Cancellations: none" in captured.out
+    assert "Internal demand units: 381" in captured.out

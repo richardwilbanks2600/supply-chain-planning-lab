@@ -20,7 +20,7 @@ planning, optimization, a database, or deployment.
 - `metadata.py` reports setup state without making an API call or exposing secrets.
 - `models.py` validates data received from FRED before transformation.
 - `inspection.py` validates, filters, and describes processed observations.
-- `demand.py` validates, filters, and summarizes the static demand scenario.
+- `demand.py` converts the fixed FRED snapshot into a transparent demand scenario.
 - `workflow.py` coordinates shared fetch and transformation logic for both interfaces.
 - `logging_config.py` owns optional console and file logging.
 - `cli.py` defines the user-facing command and coordinates the workflow.

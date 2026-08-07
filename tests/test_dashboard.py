@@ -56,5 +56,30 @@ def test_dashboard_starts_without_contacting_fred(monkeypatch) -> None:
 
     assert not app.exception
     assert app.title[0].value == "Supply Chain Planning Lab"
-    assert app.header[0].value == "Static internal demand"
+    assert app.header[0].value == "FRED-driven internal demand"
     assert any(metric.label == "Internal demand units" for metric in app.metric)
+    assert any(slider.label == "Company market share (%)" for slider in app.slider)
+
+
+def test_market_share_slider_recalculates_internal_demand(monkeypatch) -> None:
+    monkeypatch.delenv("FRED_API_KEY", raising=False)
+    dashboard = (
+        Path(__file__).parents[1]
+        / "src"
+        / "supply_chain_planning_lab"
+        / "dashboard.py"
+    )
+    app = AppTest.from_file(str(dashboard)).run(timeout=10)
+    baseline = next(
+        metric.value for metric in app.metric if metric.label == "Internal demand units"
+    )
+
+    app.slider[0].set_value(0.20).run(timeout=10)
+
+    changed = next(
+        metric.value for metric in app.metric if metric.label == "Internal demand units"
+    )
+    changed_units = int(changed.replace(",", ""))
+    baseline_units = int(baseline.replace(",", ""))
+    # Whole-unit rounding can differ once for each of 309 months x 3 products.
+    assert abs(changed_units - baseline_units * 2) <= 927

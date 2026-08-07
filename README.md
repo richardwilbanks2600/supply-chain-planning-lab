@@ -1,9 +1,9 @@
 # Supply Chain Planning Lab
 
-Supply Chain Planning Lab is an educational Python project that presents a
-fixed fictional customer-demand scenario separately from a real construction-
-market indicator. It offers both a repeatable command-line workflow and a
-local Streamlit dashboard backed by shared project logic.
+Supply Chain Planning Lab is an educational Python project that translates a
+fixed FRED construction-market history into fictional internal demand through
+visible business assumptions. It offers both a repeatable command-line
+workflow and an interactive local Streamlit dashboard.
 
 The project uses the Federal Reserve Bank of St. Louis FRED API and the
 [`PERMIT` series](https://fred.stlouisfed.org/series/PERMIT): new privately
@@ -22,8 +22,8 @@ orders, company demand, or a forecast.
 - Skip and report FRED's `.` missing-value marker.
 - Validate, filter, list, and transparently describe processed CSV records.
 - Detect duplicate periods, missing calendar months, and unexpected row order.
-- Load and validate a fixed two-year fictional customer-order history.
-- Calculate internal demand transparently as gross orders minus cancellations.
+- Load a fixed FRED `PERMIT` snapshot covering 2000 through 2025.
+- Translate market pace into internal demand with visible fictional assumptions.
 - Filter internal demand by month, customer, and product without an API key.
 - Write optional operational logs to the console and detailed logs to a file.
 - Explore the same validated records in a local Streamlit dashboard.
@@ -146,9 +146,9 @@ observations. These measures describe historical values; they are not a trend
 classification or forecast. The exact rules and a manual example are in
 [`docs/specs/milestone-02-data-inspection.md`](docs/specs/milestone-02-data-inspection.md).
 
-### Static internal demand
+### FRED-driven internal demand
 
-Inspect the packaged fictional demand scenario without an API key or network
+Inspect the default FRED-driven demand scenario without an API key or network
 call:
 
 ```shell
@@ -166,11 +166,16 @@ uv run planning-lab demand \
   --limit 12
 ```
 
-The version-controlled CSV contains 216 rows: every combination of 24 months,
-three customers, and three products. Each row records gross orders,
-cancellations, and internal demand in finished units. Runtime validation
-requires `demand units = gross order units - cancelled units`. The dashboard
-and CLI load these same fixed values; neither interface generates demand.
+The version-controlled FRED snapshot contains all 312 months from January 2000
+through December 2025. A transparent model converts the seasonally adjusted
+annual pace into a monthly pace, applies a three-month lag and fictional
+company market share, multiplies by product units per home, and allocates whole
+units among the three customers. Cancellations are currently zero.
+
+The default scenario uses a `0.10%` company share, product attachment rates of
+six small windows, four large windows, and one exterior door per addressable
+home, and customer allocations of `50%`, `30%`, and `20%`. Every derived row
+retains the FRED source month and calculation assumptions.
 
 The approved meaning, manual example, data-quality rules, and limitations are
 in
@@ -218,18 +223,19 @@ uv run streamlit run src/supply_chain_planning_lab/dashboard.py
 Streamlit prints a local URL and normally opens it in the default browser. In
 the dashboard:
 
-1. Open **Internal demand** to inspect the fixed order history without an API
+1. Open **Internal demand** to inspect the fixed FRED history without an API
    key.
-2. Filter by customer or product and inspect the monthly totals and detail
-   rows.
+2. Adjust company share, customer allocation, or units per home and inspect
+   the recalculated monthly totals and lineage rows.
 3. Open **External market indicator** to work with FRED separately.
 4. Configure `FRED_API_KEY`, choose a first observation date, and select
    **Load validated FRED data** for the external view.
 5. Review its descriptive measures, trend chart, trusted rows, and downloads.
 
-The dashboard calls the same static-demand validation and FRED workflow used
-by the CLI. It does not copy data generation, API requests, validation rules,
-or transformation logic into the user interface.
+The dashboard calls the same FRED-snapshot validation and demand-calculation
+logic used by the CLI. Sliders adjust company market share, customer
+allocation, and units per home deterministically; no random demand is
+generated.
 
 The dashboard runs locally for this project. Deployment is not required.
 
@@ -240,10 +246,10 @@ annual rate (SAAR). For example, `1,500.0` describes an annualized pace of
 approximately 1.5 million units after seasonal adjustment. It does not mean
 1.5 million permits were issued in that single month.
 
-Building permits do not identify this project's future fictional products,
-customers, orders, inventory, suppliers, or production capacity. The indicator
-and its summaries cannot establish causation, predict future values, or be used
-as company demand without a separately documented and approved model.
+Building permits do not identify this project's fictional products, customers,
+orders, inventory, suppliers, or production capacity. Milestone 3 applies a
+documented fictional translation model for teaching purposes; it does not
+establish causation or claim that the resulting demand was observed.
 
 ## Tests and verification
 
@@ -270,7 +276,7 @@ key and do not contact the live FRED service. The suite covers:
 - raw-response preservation before validation;
 - transformation and CSV output;
 - processed-CSV validation, quality detection, filtering, and descriptive measures;
-- static-demand completeness, calculation, duplicate, filtering, and summary rules;
+- FRED snapshot completeness, demand lineage, allocation, filtering, and summaries;
 - console and file logging without secret disclosure;
 - a no-network CLI smoke check; and
 - a no-network Streamlit startup check.
@@ -298,7 +304,7 @@ file, chart, and table.
 |   |-- transform.py           # trusted project-record transformation
 |   |-- workflow.py            # logic shared by CLI and dashboard
 |   `-- resources/
-|       `-- static_demand.csv  # fixed fictional order history
+|       `-- fred_permit_2000_2025.csv # fixed FRED source snapshot
 |-- tests/
 |   |-- fixtures/              # stable valid and invalid FRED examples
 |   `-- test_*.py              # unit, boundary, workflow, and smoke tests

@@ -13,11 +13,12 @@ from dotenv import load_dotenv
 from .api import FredApiError
 from .demand import (
     CUSTOMERS,
+    DEFAULT_LAG_MONTHS,
     DEMAND_FIELDS,
     PRODUCTS,
     DemandDataError,
     filter_demand,
-    load_static_demand,
+    load_default_demand,
     summarize_demand,
 )
 from .inspection import (
@@ -153,7 +154,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     demand_parser = subparsers.add_parser(
         "demand",
-        help="Inspect the fixed fictional internal-demand scenario.",
+        help="Inspect the default FRED-driven internal-demand scenario.",
     )
     demand_parser.add_argument(
         "--start-period",
@@ -292,10 +293,10 @@ def run_demand(
     product_sku: str | None,
     limit: int | None,
 ) -> int:
-    """Validate, filter, and display the packaged demand scenario."""
+    """Calculate, filter, and display the default FRED-driven scenario."""
 
     try:
-        records = load_static_demand()
+        records = load_default_demand()
         selected = filter_demand(
             records,
             start_period=start_period,
@@ -304,19 +305,19 @@ def run_demand(
             product_sku=product_sku,
         )
     except (OSError, UnicodeError, DemandDataError) as exc:
-        logger.error("Static-demand inspection failed: %s", exc)
+        logger.error("FRED-driven demand inspection failed: %s", exc)
         print(f"Error: {exc}", file=sys.stderr)
         return 1
 
     summary = summarize_demand(selected)
     periods = sorted({record["period"] for record in selected})
     coverage = f"{periods[0]} through {periods[-1]}" if periods else "none"
-    print("Scenario: fixed fictional internal demand")
-    print("Generation: none; values are loaded from a version-controlled CSV")
+    print("Scenario: FRED-driven fictional internal demand")
+    print("Source: fixed FRED PERMIT snapshot, 2000-01 through 2025-12")
+    print(f"Demand lag: {DEFAULT_LAG_MONTHS} months")
+    print("Cancellations: none")
     print(f"Selected coverage: {coverage}")
     print(f"Selected records: {summary.record_count}")
-    print(f"Gross ordered units: {summary.gross_order_units:,}")
-    print(f"Cancelled units: {summary.cancelled_units:,}")
     print(f"Internal demand units: {summary.demand_units:,}")
 
     displayed = selected[:limit] if limit is not None else selected
