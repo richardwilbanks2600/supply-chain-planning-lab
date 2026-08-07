@@ -25,6 +25,8 @@ orders, company demand, or a forecast.
 - Load a fixed FRED `PERMIT` snapshot covering 2000 through 2025.
 - Translate market pace into internal demand with visible fictional assumptions.
 - Filter internal demand by month, customer, and product without an API key.
+- Compare previous-month, seasonal-naive, and trailing-average demand forecasts.
+- Evaluate forecast magnitude and direction with MAE and bias.
 - Write optional operational logs to the console and detailed logs to a file.
 - Explore the same validated records in a local Streamlit dashboard.
 - Test success and failure behavior with fixtures and mocks instead of live API
@@ -114,6 +116,7 @@ uv run planning-lab --help
 uv run planning-lab fetch --help
 uv run planning-lab inspect --help
 uv run planning-lab demand --help
+uv run planning-lab forecast --help
 ```
 
 ### Processed-data inspection
@@ -181,6 +184,34 @@ The approved meaning, manual example, data-quality rules, and limitations are
 in
 [`docs/specs/milestone-03-fictional-demand.md`](docs/specs/milestone-03-fictional-demand.md).
 
+### Baseline forecast comparison
+
+Compare all three approved methods and list the primary same-month-last-year
+baseline without an API key or network call:
+
+```shell
+uv run planning-lab forecast --limit 12
+```
+
+Inspect another method or product over a narrower evaluation period:
+
+```shell
+uv run planning-lab forecast \
+  --method trailing_3_average \
+  --product WIN-2436 \
+  --start-period 2024-01 \
+  --end-period 2025-12 \
+  --limit 12
+```
+
+Forecasts are calculated at monthly product-total level across customers. The
+approved common evaluation period is January 2020 through December 2025. The
+command reports mean absolute error (MAE) and bias using
+`error = actual - forecast`, so positive bias means underforecasting.
+
+The exact methods, manual example, error definitions, and limitations are in
+[`docs/specs/milestone-04-baseline-forecasting.md`](docs/specs/milestone-04-baseline-forecasting.md).
+
 ### Logging
 
 Show operational `INFO` messages in the terminal:
@@ -227,10 +258,12 @@ the dashboard:
    key.
 2. Adjust company share, customer allocation, or units per home and inspect
    the recalculated monthly totals and lineage rows.
-3. Open **External market indicator** to work with FRED separately.
-4. Configure `FRED_API_KEY`, choose a first observation date, and select
+3. Open **Forecast baselines** to compare all methods and explore actual versus
+   forecast demand for each product.
+4. Open **External market indicator** to work with live FRED data separately.
+5. Configure `FRED_API_KEY`, choose a first observation date, and select
    **Load validated FRED data** for the external view.
-5. Review its descriptive measures, trend chart, trusted rows, and downloads.
+6. Review its descriptive measures, trend chart, trusted rows, and downloads.
 
 The dashboard calls the same FRED-snapshot validation and demand-calculation
 logic used by the CLI. Sliders adjust company market share, customer
@@ -277,6 +310,7 @@ key and do not contact the live FRED service. The suite covers:
 - transformation and CSV output;
 - processed-CSV validation, quality detection, filtering, and descriptive measures;
 - FRED snapshot completeness, demand lineage, allocation, filtering, and summaries;
+- baseline forecast calculations, filtering, MAE, bias, and manual examples;
 - console and file logging without secret disclosure;
 - a no-network CLI smoke check; and
 - a no-network Streamlit startup check.
@@ -295,7 +329,8 @@ file, chart, and table.
 |   |-- api.py                 # FRED HTTP boundary
 |   |-- cli.py                 # command-line interface
 |   |-- dashboard.py           # local Streamlit interface
-|   |-- demand.py              # static demand validation and summaries
+|   |-- demand.py              # FRED-to-demand assumptions and calculations
+|   |-- forecasting.py         # baseline forecasts and performance measures
 |   |-- inspection.py          # processed-data quality and descriptions
 |   |-- logging_config.py      # console and file logging setup
 |   |-- metadata.py            # safe project setup information

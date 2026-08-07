@@ -28,6 +28,16 @@ from .inspection import (
     read_processed_csv,
     summarize_records,
 )
+from .forecasting import (
+    EVALUATION_END_PERIOD,
+    EVALUATION_START_PERIOD,
+    METHOD_LABELS,
+    PRIMARY_METHOD,
+    ForecastError,
+    compare_baselines,
+    filter_forecasts,
+    summarize_forecasts,
+)
 from .logging_config import LoggingSetupError, configure_logging
 from .metadata import project_info
 from .output import create_output_paths, write_processed_csv, write_raw_response
@@ -188,6 +198,42 @@ def build_parser() -> argparse.ArgumentParser:
         help="maximum rows to list after filtering (default: all)",
     )
 
+    forecast_parser = subparsers.add_parser(
+        "forecast",
+        help="Compare explainable internal-demand baseline forecasts.",
+    )
+    forecast_parser.add_argument(
+        "--method",
+        choices=tuple(METHOD_LABELS),
+        default=PRIMARY_METHOD,
+        help=f"method to list in detail (default: {PRIMARY_METHOD})",
+    )
+    forecast_parser.add_argument(
+        "--product",
+        choices=tuple(PRODUCTS),
+        default=None,
+        metavar="SKU",
+        help="product SKU to list (default: all)",
+    )
+    forecast_parser.add_argument(
+        "--start-period",
+        type=month_period,
+        default=EVALUATION_START_PERIOD,
+        help=f"first evaluation month (default: {EVALUATION_START_PERIOD})",
+    )
+    forecast_parser.add_argument(
+        "--end-period",
+        type=month_period,
+        default=EVALUATION_END_PERIOD,
+        help=f"last evaluation month (default: {EVALUATION_END_PERIOD})",
+    )
+    forecast_parser.add_argument(
+        "--limit",
+        type=positive_integer,
+        default=None,
+        help="maximum detail rows to list (default: all)",
+    )
+
     return parser
 
 
@@ -328,6 +374,62 @@ def run_demand(
     return 0
 
 
+def run_forecast(
+    *,
+    method: str,
+    product_sku: str | None,
+    start_period: str,
+    end_period: str,
+    limit: int | None,
+) -> int:
+    """Compare approved baselines over the requested evaluation period."""
+
+    try:
+        demand_records = load_default_demand()
+        records, summaries = compare_baselines(
+            demand_records,
+            start_period=start_period,
+            end_period=end_period,
+        )
+        selected = filter_forecasts(
+            records,
+            method=method,
+            product_sku=product_sku,
+        )
+        selected_summary = summarize_forecasts(selected, method)
+    except (OSError, UnicodeError, DemandDataError, ForecastError) as exc:
+        logger.error("Baseline forecast comparison failed: %s", exc)
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+
+    print("Forecast grain: monthly product demand across all customers")
+    print(f"Evaluation period: {start_period} through {end_period}")
+    print("Error definition: actual - forecast; positive means underforecast")
+    print("Baseline comparison:")
+    print("method,forecast_count,mae,bias")
+    for summary in summaries:
+        print(
+            f"{summary.method},{summary.forecast_count},"
+            f"{_number(summary.mean_absolute_error)},"
+            f"{_signed_number(summary.bias)}"
+        )
+    print(f"Detailed method: {method} ({METHOD_LABELS[method]})")
+    print(f"Detailed forecasts: {selected_summary.forecast_count}")
+    print(f"Detailed MAE: {_number(selected_summary.mean_absolute_error)}")
+    print(f"Detailed bias: {_signed_number(selected_summary.bias)}")
+
+    displayed = selected[:limit] if limit is not None else selected
+    print(f"Listed forecasts: {len(displayed)}")
+    print("period,product_sku,actual_units,forecast_units,error_units")
+    for record in displayed:
+        print(
+            f"{record['period']},{record['product_sku']},"
+            f"{record['actual_units']},{record['forecast_units']:.1f},"
+            f"{record['error_units']:+.1f}"
+        )
+    return 0
+
+
 def _period_list(periods: Sequence[str]) -> str:
     """Format detected periods without overwhelming the console."""
 
@@ -386,12 +488,22 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
 
     if args.command == "demand":
-        logger.info("Inspecting the packaged static-demand scenario.")
+        logger.info("Inspecting the default FRED-driven demand scenario.")
         return run_demand(
             start_period=args.start_period,
             end_period=args.end_period,
             customer=args.customer,
             product_sku=args.product,
+            limit=args.limit,
+        )
+
+    if args.command == "forecast":
+        logger.info("Comparing internal-demand baseline forecasts.")
+        return run_forecast(
+            method=args.method,
+            product_sku=args.product,
+            start_period=args.start_period,
+            end_period=args.end_period,
             limit=args.limit,
         )
 

@@ -16,11 +16,19 @@ from supply_chain_planning_lab.demand import (
     PRODUCTS,
     DemandAssumptions,
     DemandDataError,
+    DemandRecord,
     filter_demand,
     generate_demand,
     load_fred_snapshot,
     monthly_demand,
     summarize_demand,
+)
+from supply_chain_planning_lab.forecasting import (
+    METHOD_LABELS,
+    PRIMARY_METHOD,
+    compare_baselines,
+    filter_forecasts,
+    summarize_forecasts,
 )
 from supply_chain_planning_lab.inspection import summarize_records
 from supply_chain_planning_lab.logging_config import configure_logging
@@ -47,16 +55,19 @@ def main() -> None:
         "Translate a fixed FRED market history into an interactive fictional "
         "customer-demand scenario with visible assumptions."
     )
-    demand_tab, external_tab = st.tabs(
-        ("Internal demand", "External market indicator")
+    demand_tab, forecast_tab, external_tab = st.tabs(
+        ("Internal demand", "Forecast baselines", "External market indicator")
     )
     with demand_tab:
-        _render_internal_demand()
+        demand_records = _render_internal_demand()
+    with forecast_tab:
+        if demand_records is not None:
+            _render_forecast_baselines(demand_records)
     with external_tab:
         _render_external_indicator()
 
 
-def _render_internal_demand() -> None:
+def _render_internal_demand() -> list[DemandRecord] | None:
     """Render a deterministic scenario from the fixed FRED snapshot."""
 
     st.header("FRED-driven internal demand")
@@ -129,7 +140,7 @@ def _render_internal_demand() -> None:
     except (OSError, UnicodeError, DemandDataError) as exc:
         logger.error("FRED-driven demand could not be calculated: %s", exc)
         st.error(f"FRED-driven demand could not be calculated: {exc}")
-        return
+        return None
 
     customer_choice = st.selectbox(
         "Demand customer", ("All customers", *CUSTOMERS)
@@ -196,6 +207,126 @@ def _render_internal_demand() -> None:
             "unit": "Unit",
         },
     )
+    return records
+
+
+def _render_forecast_baselines(demand_records: list[DemandRecord]) -> None:
+    """Compare approved baseline forecasts for the current demand scenario."""
+
+    st.header("Baseline forecast comparison")
+    st.write(
+        "Each method forecasts monthly product demand using only earlier internal "
+        "demand. The common evaluation period is January 2020 through December 2025."
+    )
+    st.caption(
+        "Error = actual - forecast. Positive error means demand was underforecast; "
+        "negative error means it was overforecast."
+    )
+    records, summaries = compare_baselines(demand_records)
+    st.subheader("Method performance")
+    st.caption(
+        "Primary baseline identifies the approved reference method; it does not "
+        "claim that the method has the lowest error."
+    )
+    st.dataframe(
+        [
+            {
+                "method": summary.method_label,
+                "forecast_count": summary.forecast_count,
+                "mae": summary.mean_absolute_error,
+                "bias": summary.bias,
+                "primary": "Yes" if summary.method == PRIMARY_METHOD else "No",
+            }
+            for summary in summaries
+        ],
+        hide_index=True,
+        width="stretch",
+        column_config={
+            "method": "Method",
+            "forecast_count": "Forecasts",
+            "mae": st.column_config.NumberColumn("MAE", format="%.1f"),
+            "bias": st.column_config.NumberColumn("Bias", format="%+.1f"),
+            "primary": "Primary baseline",
+        },
+    )
+
+    method = st.selectbox(
+        "Forecast method",
+        tuple(METHOD_LABELS),
+        index=tuple(METHOD_LABELS).index(PRIMARY_METHOD),
+        format_func=lambda value: METHOD_LABELS[value],
+    )
+    product_sku = st.selectbox(
+        "Forecast product",
+        tuple(PRODUCTS),
+        format_func=lambda value: f"{value} - {PRODUCTS[value]}",
+    )
+    selected = filter_forecasts(
+        records,
+        method=method,
+        product_sku=product_sku,
+    )
+    summary = summarize_forecasts(selected, method)
+    count, mae, bias = st.columns(3)
+    count.metric("Forecast observations", summary.forecast_count)
+    mae.metric(
+        "Mean absolute error",
+        f"{summary.mean_absolute_error:,.1f}"
+        if summary.mean_absolute_error is not None
+        else "Not available",
+    )
+    bias.metric(
+        "Mean error (bias)",
+        f"{summary.bias:+,.1f}" if summary.bias is not None else "Not available",
+    )
+
+    st.subheader("Actual versus forecast")
+    st.line_chart(
+        [
+            {
+                "period": record["period"],
+                "actual_units": record["actual_units"],
+                "forecast_units": record["forecast_units"],
+            }
+            for record in selected
+        ],
+        x="period",
+        y=("actual_units", "forecast_units"),
+    )
+    st.dataframe(
+        selected,
+        hide_index=True,
+        width="stretch",
+        column_config={
+            "period": "Month",
+            "product_sku": "Product SKU",
+            "product_name": "Product",
+            "method": None,
+            "method_label": "Method",
+            "actual_units": "Actual units",
+            "forecast_units": st.column_config.NumberColumn(
+                "Forecast units", format="%.1f"
+            ),
+            "error_units": st.column_config.NumberColumn(
+                "Error", format="%+.1f"
+            ),
+            "absolute_error_units": st.column_config.NumberColumn(
+                "Absolute error", format="%.1f"
+            ),
+        },
+    )
+
+    with st.expander("How the trailing 3-month average works"):
+        st.code(
+            "forecast(t) = [actual(t-1) + actual(t-2) + actual(t-3)] / 3",
+            language="text",
+        )
+        st.write(
+            "A three-month window smooths short-term movement but can lag when "
+            "demand rises or falls for several months. The future Learning Guide "
+            "will compare other window lengths, weighted averages, and exponential "
+            "averages."
+        )
 
 
 def _render_external_indicator() -> None:

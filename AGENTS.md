@@ -6,11 +6,12 @@ Build an educational supply-chain planning tool in small, reviewable increments.
 
 ## Current milestone boundary
 
-Milestone 3 is implemented as defined in
-`docs/specs/milestone-03-fictional-demand.md`. Do not begin Milestone 4 until
-candidate baseline forecasting methods have been reviewed and one has been
-approved for the learning objective. Do not add inventory, production
-planning, optimization, a database, or deployment.
+Milestone 4 is implemented as defined in
+`docs/specs/milestone-04-baseline-forecasting.md`. Do not begin Milestone 5
+until the FRED forecast horizon, information available at each forecast
+origin, baseline method, and treatment of revised observations have been
+reviewed and approved. Do not add inventory, production planning,
+optimization, a database, or deployment.
 
 ## Architecture
 
@@ -21,6 +22,7 @@ planning, optimization, a database, or deployment.
 - `models.py` validates data received from FRED before transformation.
 - `inspection.py` validates, filters, and describes processed observations.
 - `demand.py` converts the fixed FRED snapshot into a transparent demand scenario.
+- `forecasting.py` calculates and evaluates explainable demand baselines.
 - `workflow.py` coordinates shared fetch and transformation logic for both interfaces.
 - `logging_config.py` owns optional console and file logging.
 - `cli.py` defines the user-facing command and coordinates the workflow.
