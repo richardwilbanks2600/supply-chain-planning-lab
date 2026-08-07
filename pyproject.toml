@@ -1,6 +1,6 @@
 [project]
 name = "supply-chain-planning-lab"
-version = "0.3.0"
+version = "0.4.0"
 description = "An educational pipeline that prepares economic data for future supply-chain planning exercises."
 readme = "README.md"
 requires-python = ">=3.12"

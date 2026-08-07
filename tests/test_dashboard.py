@@ -56,3 +56,5 @@ def test_dashboard_starts_without_contacting_fred(monkeypatch) -> None:
 
     assert not app.exception
     assert app.title[0].value == "Supply Chain Planning Lab"
+    assert app.header[0].value == "Static internal demand"
+    assert any(metric.label == "Internal demand units" for metric in app.metric)

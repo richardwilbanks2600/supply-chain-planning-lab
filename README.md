@@ -1,9 +1,9 @@
 # Supply Chain Planning Lab
 
-Supply Chain Planning Lab is an educational Python project that retrieves,
-validates, and displays a real construction-market indicator. It offers both a
-repeatable command-line workflow and a local Streamlit dashboard backed by the
-same project logic.
+Supply Chain Planning Lab is an educational Python project that presents a
+fixed fictional customer-demand scenario separately from a real construction-
+market indicator. It offers both a repeatable command-line workflow and a
+local Streamlit dashboard backed by shared project logic.
 
 The project uses the Federal Reserve Bank of St. Louis FRED API and the
 [`PERMIT` series](https://fred.stlouisfed.org/series/PERMIT): new privately
@@ -22,6 +22,9 @@ orders, company demand, or a forecast.
 - Skip and report FRED's `.` missing-value marker.
 - Validate, filter, list, and transparently describe processed CSV records.
 - Detect duplicate periods, missing calendar months, and unexpected row order.
+- Load and validate a fixed two-year fictional customer-order history.
+- Calculate internal demand transparently as gross orders minus cancellations.
+- Filter internal demand by month, customer, and product without an API key.
 - Write optional operational logs to the console and detailed logs to a file.
 - Explore the same validated records in a local Streamlit dashboard.
 - Test success and failure behavior with fixtures and mocks instead of live API
@@ -110,6 +113,7 @@ Display command help:
 uv run planning-lab --help
 uv run planning-lab fetch --help
 uv run planning-lab inspect --help
+uv run planning-lab demand --help
 ```
 
 ### Processed-data inspection
@@ -141,6 +145,36 @@ latest change, and the arithmetic mean of up to the latest 12 valid
 observations. These measures describe historical values; they are not a trend
 classification or forecast. The exact rules and a manual example are in
 [`docs/specs/milestone-02-data-inspection.md`](docs/specs/milestone-02-data-inspection.md).
+
+### Static internal demand
+
+Inspect the packaged fictional demand scenario without an API key or network
+call:
+
+```shell
+uv run planning-lab demand --limit 12
+```
+
+Filter by requested ship month, customer, and product:
+
+```shell
+uv run planning-lab demand \
+  --start-period 2024-01 \
+  --end-period 2024-12 \
+  --customer "Building Houses Company" \
+  --product WIN-2436 \
+  --limit 12
+```
+
+The version-controlled CSV contains 216 rows: every combination of 24 months,
+three customers, and three products. Each row records gross orders,
+cancellations, and internal demand in finished units. Runtime validation
+requires `demand units = gross order units - cancelled units`. The dashboard
+and CLI load these same fixed values; neither interface generates demand.
+
+The approved meaning, manual example, data-quality rules, and limitations are
+in
+[`docs/specs/milestone-03-fictional-demand.md`](docs/specs/milestone-03-fictional-demand.md).
 
 ### Logging
 
@@ -175,7 +209,7 @@ they do not record the API key.
 
 ## Streamlit dashboard
 
-Start the local dashboard after configuring `FRED_API_KEY`:
+Start the local dashboard:
 
 ```shell
 uv run streamlit run src/supply_chain_planning_lab/dashboard.py
@@ -184,17 +218,18 @@ uv run streamlit run src/supply_chain_planning_lab/dashboard.py
 Streamlit prints a local URL and normally opens it in the default browser. In
 the dashboard:
 
-1. Choose the first observation date.
-2. Select **Load validated FRED data**.
-3. Review the valid and skipped record counts plus the approved descriptive
-   measures.
-4. Choose how many recent observations to display and their table order.
-5. Inspect the trend chart and trusted detail rows.
-6. Download the raw JSON evidence or validated CSV records if useful.
+1. Open **Internal demand** to inspect the fixed order history without an API
+   key.
+2. Filter by customer or product and inspect the monthly totals and detail
+   rows.
+3. Open **External market indicator** to work with FRED separately.
+4. Configure `FRED_API_KEY`, choose a first observation date, and select
+   **Load validated FRED data** for the external view.
+5. Review its descriptive measures, trend chart, trusted rows, and downloads.
 
-The dashboard calls the same `fetch_planning_data` workflow as the CLI. It does
-not copy API requests, validation rules, or transformation logic into the user
-interface.
+The dashboard calls the same static-demand validation and FRED workflow used
+by the CLI. It does not copy data generation, API requests, validation rules,
+or transformation logic into the user interface.
 
 The dashboard runs locally for this project. Deployment is not required.
 
@@ -235,6 +270,7 @@ key and do not contact the live FRED service. The suite covers:
 - raw-response preservation before validation;
 - transformation and CSV output;
 - processed-CSV validation, quality detection, filtering, and descriptive measures;
+- static-demand completeness, calculation, duplicate, filtering, and summary rules;
 - console and file logging without secret disclosure;
 - a no-network CLI smoke check; and
 - a no-network Streamlit startup check.
@@ -253,13 +289,16 @@ file, chart, and table.
 |   |-- api.py                 # FRED HTTP boundary
 |   |-- cli.py                 # command-line interface
 |   |-- dashboard.py           # local Streamlit interface
+|   |-- demand.py              # static demand validation and summaries
 |   |-- inspection.py          # processed-data quality and descriptions
 |   |-- logging_config.py      # console and file logging setup
 |   |-- metadata.py            # safe project setup information
 |   |-- models.py              # Pydantic runtime validation
 |   |-- output.py              # raw JSON and processed CSV output
 |   |-- transform.py           # trusted project-record transformation
-|   `-- workflow.py            # logic shared by CLI and dashboard
+|   |-- workflow.py            # logic shared by CLI and dashboard
+|   `-- resources/
+|       `-- static_demand.csv  # fixed fictional order history
 |-- tests/
 |   |-- fixtures/              # stable valid and invalid FRED examples
 |   `-- test_*.py              # unit, boundary, workflow, and smoke tests

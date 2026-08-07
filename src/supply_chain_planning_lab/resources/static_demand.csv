@@ -1,0 +1,217 @@
+period,customer,customer_type,product_sku,product_name,gross_order_units,cancelled_units,demand_units,unit
+2024-01,Building Houses Company,builder,WIN-2436,24 x 36 Vinyl Window,87,3,84,finished_units
+2024-01,Building Houses Company,builder,WIN-3648,36 x 48 Vinyl Window,69,0,69,finished_units
+2024-01,Building Houses Company,builder,DOOR-3680,36 x 80 Insulated Exterior Door,57,2,55,finished_units
+2024-01,Building Supply Company,distributor,WIN-2436,24 x 36 Vinyl Window,61,0,61,finished_units
+2024-01,Building Supply Company,distributor,WIN-3648,36 x 48 Vinyl Window,50,0,50,finished_units
+2024-01,Building Supply Company,distributor,DOOR-3680,36 x 80 Insulated Exterior Door,37,0,37,finished_units
+2024-01,Building Remodeler,remodeler,WIN-2436,24 x 36 Vinyl Window,21,0,21,finished_units
+2024-01,Building Remodeler,remodeler,WIN-3648,36 x 48 Vinyl Window,0,0,0,finished_units
+2024-01,Building Remodeler,remodeler,DOOR-3680,36 x 80 Insulated Exterior Door,17,0,17,finished_units
+2024-02,Building Houses Company,builder,WIN-2436,24 x 36 Vinyl Window,93,0,93,finished_units
+2024-02,Building Houses Company,builder,WIN-3648,36 x 48 Vinyl Window,73,0,73,finished_units
+2024-02,Building Houses Company,builder,DOOR-3680,36 x 80 Insulated Exterior Door,54,0,54,finished_units
+2024-02,Building Supply Company,distributor,WIN-2436,24 x 36 Vinyl Window,65,0,65,finished_units
+2024-02,Building Supply Company,distributor,WIN-3648,36 x 48 Vinyl Window,54,2,52,finished_units
+2024-02,Building Supply Company,distributor,DOOR-3680,36 x 80 Insulated Exterior Door,39,0,39,finished_units
+2024-02,Building Remodeler,remodeler,WIN-2436,24 x 36 Vinyl Window,23,0,23,finished_units
+2024-02,Building Remodeler,remodeler,WIN-3648,36 x 48 Vinyl Window,0,0,0,finished_units
+2024-02,Building Remodeler,remodeler,DOOR-3680,36 x 80 Insulated Exterior Door,19,0,19,finished_units
+2024-03,Building Houses Company,builder,WIN-2436,24 x 36 Vinyl Window,104,0,104,finished_units
+2024-03,Building Houses Company,builder,WIN-3648,36 x 48 Vinyl Window,82,0,82,finished_units
+2024-03,Building Houses Company,builder,DOOR-3680,36 x 80 Insulated Exterior Door,61,0,61,finished_units
+2024-03,Building Supply Company,distributor,WIN-2436,24 x 36 Vinyl Window,73,0,73,finished_units
+2024-03,Building Supply Company,distributor,WIN-3648,36 x 48 Vinyl Window,53,0,53,finished_units
+2024-03,Building Supply Company,distributor,DOOR-3680,36 x 80 Insulated Exterior Door,45,0,45,finished_units
+2024-03,Building Remodeler,remodeler,WIN-2436,24 x 36 Vinyl Window,26,1,25,finished_units
+2024-03,Building Remodeler,remodeler,WIN-3648,36 x 48 Vinyl Window,15,0,15,finished_units
+2024-03,Building Remodeler,remodeler,DOOR-3680,36 x 80 Insulated Exterior Door,22,1,21,finished_units
+2024-04,Building Houses Company,builder,WIN-2436,24 x 36 Vinyl Window,114,0,114,finished_units
+2024-04,Building Houses Company,builder,WIN-3648,36 x 48 Vinyl Window,90,3,87,finished_units
+2024-04,Building Houses Company,builder,DOOR-3680,36 x 80 Insulated Exterior Door,68,0,68,finished_units
+2024-04,Building Supply Company,distributor,WIN-2436,24 x 36 Vinyl Window,81,0,81,finished_units
+2024-04,Building Supply Company,distributor,WIN-3648,36 x 48 Vinyl Window,59,0,59,finished_units
+2024-04,Building Supply Company,distributor,DOOR-3680,36 x 80 Insulated Exterior Door,50,0,50,finished_units
+2024-04,Building Remodeler,remodeler,WIN-2436,24 x 36 Vinyl Window,22,0,22,finished_units
+2024-04,Building Remodeler,remodeler,WIN-3648,36 x 48 Vinyl Window,18,0,18,finished_units
+2024-04,Building Remodeler,remodeler,DOOR-3680,36 x 80 Insulated Exterior Door,25,0,25,finished_units
+2024-05,Building Houses Company,builder,WIN-2436,24 x 36 Vinyl Window,124,0,124,finished_units
+2024-05,Building Houses Company,builder,WIN-3648,36 x 48 Vinyl Window,91,0,91,finished_units
+2024-05,Building Houses Company,builder,DOOR-3680,36 x 80 Insulated Exterior Door,74,0,74,finished_units
+2024-05,Building Supply Company,distributor,WIN-2436,24 x 36 Vinyl Window,88,3,85,finished_units
+2024-05,Building Supply Company,distributor,WIN-3648,36 x 48 Vinyl Window,65,0,65,finished_units
+2024-05,Building Supply Company,distributor,DOOR-3680,36 x 80 Insulated Exterior Door,55,2,53,finished_units
+2024-05,Building Remodeler,remodeler,WIN-2436,24 x 36 Vinyl Window,25,0,25,finished_units
+2024-05,Building Remodeler,remodeler,WIN-3648,36 x 48 Vinyl Window,20,0,20,finished_units
+2024-05,Building Remodeler,remodeler,DOOR-3680,36 x 80 Insulated Exterior Door,21,0,21,finished_units
+2024-06,Building Houses Company,builder,WIN-2436,24 x 36 Vinyl Window,132,0,132,finished_units
+2024-06,Building Houses Company,builder,WIN-3648,36 x 48 Vinyl Window,97,0,97,finished_units
+2024-06,Building Houses Company,builder,DOOR-3680,36 x 80 Insulated Exterior Door,79,0,79,finished_units
+2024-06,Building Supply Company,distributor,WIN-2436,24 x 36 Vinyl Window,87,0,87,finished_units
+2024-06,Building Supply Company,distributor,WIN-3648,36 x 48 Vinyl Window,70,0,70,finished_units
+2024-06,Building Supply Company,distributor,DOOR-3680,36 x 80 Insulated Exterior Door,58,0,58,finished_units
+2024-06,Building Remodeler,remodeler,WIN-2436,24 x 36 Vinyl Window,27,0,27,finished_units
+2024-06,Building Remodeler,remodeler,WIN-3648,36 x 48 Vinyl Window,22,1,21,finished_units
+2024-06,Building Remodeler,remodeler,DOOR-3680,36 x 80 Insulated Exterior Door,23,0,23,finished_units
+2024-07,Building Houses Company,builder,WIN-2436,24 x 36 Vinyl Window,135,4,131,finished_units
+2024-07,Building Houses Company,builder,WIN-3648,36 x 48 Vinyl Window,100,0,100,finished_units
+2024-07,Building Houses Company,builder,DOOR-3680,36 x 80 Insulated Exterior Door,81,2,79,finished_units
+2024-07,Building Supply Company,distributor,WIN-2436,24 x 36 Vinyl Window,89,0,89,finished_units
+2024-07,Building Supply Company,distributor,WIN-3648,36 x 48 Vinyl Window,72,0,72,finished_units
+2024-07,Building Supply Company,distributor,DOOR-3680,36 x 80 Insulated Exterior Door,53,0,53,finished_units
+2024-07,Building Remodeler,remodeler,WIN-2436,24 x 36 Vinyl Window,29,0,29,finished_units
+2024-07,Building Remodeler,remodeler,WIN-3648,36 x 48 Vinyl Window,23,0,23,finished_units
+2024-07,Building Remodeler,remodeler,DOOR-3680,36 x 80 Insulated Exterior Door,24,0,24,finished_units
+2024-08,Building Houses Company,builder,WIN-2436,24 x 36 Vinyl Window,125,0,125,finished_units
+2024-08,Building Houses Company,builder,WIN-3648,36 x 48 Vinyl Window,97,0,97,finished_units
+2024-08,Building Houses Company,builder,DOOR-3680,36 x 80 Insulated Exterior Door,80,0,80,finished_units
+2024-08,Building Supply Company,distributor,WIN-2436,24 x 36 Vinyl Window,87,0,87,finished_units
+2024-08,Building Supply Company,distributor,WIN-3648,36 x 48 Vinyl Window,70,2,68,finished_units
+2024-08,Building Supply Company,distributor,DOOR-3680,36 x 80 Insulated Exterior Door,53,0,53,finished_units
+2024-08,Building Remodeler,remodeler,WIN-2436,24 x 36 Vinyl Window,29,0,29,finished_units
+2024-08,Building Remodeler,remodeler,WIN-3648,36 x 48 Vinyl Window,17,0,17,finished_units
+2024-08,Building Remodeler,remodeler,DOOR-3680,36 x 80 Insulated Exterior Door,24,0,24,finished_units
+2024-09,Building Houses Company,builder,WIN-2436,24 x 36 Vinyl Window,117,0,117,finished_units
+2024-09,Building Houses Company,builder,WIN-3648,36 x 48 Vinyl Window,92,0,92,finished_units
+2024-09,Building Houses Company,builder,DOOR-3680,36 x 80 Insulated Exterior Door,68,0,68,finished_units
+2024-09,Building Supply Company,distributor,WIN-2436,24 x 36 Vinyl Window,82,0,82,finished_units
+2024-09,Building Supply Company,distributor,WIN-3648,36 x 48 Vinyl Window,67,0,67,finished_units
+2024-09,Building Supply Company,distributor,DOOR-3680,36 x 80 Insulated Exterior Door,50,0,50,finished_units
+2024-09,Building Remodeler,remodeler,WIN-2436,24 x 36 Vinyl Window,28,1,27,finished_units
+2024-09,Building Remodeler,remodeler,WIN-3648,36 x 48 Vinyl Window,16,0,16,finished_units
+2024-09,Building Remodeler,remodeler,DOOR-3680,36 x 80 Insulated Exterior Door,24,1,23,finished_units
+2024-10,Building Houses Company,builder,WIN-2436,24 x 36 Vinyl Window,110,0,110,finished_units
+2024-10,Building Houses Company,builder,WIN-3648,36 x 48 Vinyl Window,87,3,84,finished_units
+2024-10,Building Houses Company,builder,DOOR-3680,36 x 80 Insulated Exterior Door,65,0,65,finished_units
+2024-10,Building Supply Company,distributor,WIN-2436,24 x 36 Vinyl Window,78,0,78,finished_units
+2024-10,Building Supply Company,distributor,WIN-3648,36 x 48 Vinyl Window,57,0,57,finished_units
+2024-10,Building Supply Company,distributor,DOOR-3680,36 x 80 Insulated Exterior Door,47,0,47,finished_units
+2024-10,Building Remodeler,remodeler,WIN-2436,24 x 36 Vinyl Window,27,0,27,finished_units
+2024-10,Building Remodeler,remodeler,WIN-3648,36 x 48 Vinyl Window,16,0,16,finished_units
+2024-10,Building Remodeler,remodeler,DOOR-3680,36 x 80 Insulated Exterior Door,23,0,23,finished_units
+2024-11,Building Houses Company,builder,WIN-2436,24 x 36 Vinyl Window,101,0,101,finished_units
+2024-11,Building Houses Company,builder,WIN-3648,36 x 48 Vinyl Window,80,0,80,finished_units
+2024-11,Building Houses Company,builder,DOOR-3680,36 x 80 Insulated Exterior Door,60,0,60,finished_units
+2024-11,Building Supply Company,distributor,WIN-2436,24 x 36 Vinyl Window,72,2,70,finished_units
+2024-11,Building Supply Company,distributor,WIN-3648,36 x 48 Vinyl Window,52,0,52,finished_units
+2024-11,Building Supply Company,distributor,DOOR-3680,36 x 80 Insulated Exterior Door,44,1,43,finished_units
+2024-11,Building Remodeler,remodeler,WIN-2436,24 x 36 Vinyl Window,19,0,19,finished_units
+2024-11,Building Remodeler,remodeler,WIN-3648,36 x 48 Vinyl Window,16,0,16,finished_units
+2024-11,Building Remodeler,remodeler,DOOR-3680,36 x 80 Insulated Exterior Door,22,0,22,finished_units
+2024-12,Building Houses Company,builder,WIN-2436,24 x 36 Vinyl Window,95,0,95,finished_units
+2024-12,Building Houses Company,builder,WIN-3648,36 x 48 Vinyl Window,68,0,68,finished_units
+2024-12,Building Houses Company,builder,DOOR-3680,36 x 80 Insulated Exterior Door,56,0,56,finished_units
+2024-12,Building Supply Company,distributor,WIN-2436,24 x 36 Vinyl Window,68,0,68,finished_units
+2024-12,Building Supply Company,distributor,WIN-3648,36 x 48 Vinyl Window,49,0,49,finished_units
+2024-12,Building Supply Company,distributor,DOOR-3680,36 x 80 Insulated Exterior Door,42,0,42,finished_units
+2024-12,Building Remodeler,remodeler,WIN-2436,24 x 36 Vinyl Window,18,0,18,finished_units
+2024-12,Building Remodeler,remodeler,WIN-3648,36 x 48 Vinyl Window,15,1,14,finished_units
+2024-12,Building Remodeler,remodeler,DOOR-3680,36 x 80 Insulated Exterior Door,15,0,15,finished_units
+2025-01,Building Houses Company,builder,WIN-2436,24 x 36 Vinyl Window,96,0,96,finished_units
+2025-01,Building Houses Company,builder,WIN-3648,36 x 48 Vinyl Window,70,0,70,finished_units
+2025-01,Building Houses Company,builder,DOOR-3680,36 x 80 Insulated Exterior Door,57,0,57,finished_units
+2025-01,Building Supply Company,distributor,WIN-2436,24 x 36 Vinyl Window,62,0,62,finished_units
+2025-01,Building Supply Company,distributor,WIN-3648,36 x 48 Vinyl Window,50,2,48,finished_units
+2025-01,Building Supply Company,distributor,DOOR-3680,36 x 80 Insulated Exterior Door,43,0,43,finished_units
+2025-01,Building Remodeler,remodeler,WIN-2436,24 x 36 Vinyl Window,19,0,19,finished_units
+2025-01,Building Remodeler,remodeler,WIN-3648,36 x 48 Vinyl Window,0,0,0,finished_units
+2025-01,Building Remodeler,remodeler,DOOR-3680,36 x 80 Insulated Exterior Door,16,0,16,finished_units
+2025-02,Building Houses Company,builder,WIN-2436,24 x 36 Vinyl Window,101,0,101,finished_units
+2025-02,Building Houses Company,builder,WIN-3648,36 x 48 Vinyl Window,74,0,74,finished_units
+2025-02,Building Houses Company,builder,DOOR-3680,36 x 80 Insulated Exterior Door,61,0,61,finished_units
+2025-02,Building Supply Company,distributor,WIN-2436,24 x 36 Vinyl Window,66,0,66,finished_units
+2025-02,Building Supply Company,distributor,WIN-3648,36 x 48 Vinyl Window,54,0,54,finished_units
+2025-02,Building Supply Company,distributor,DOOR-3680,36 x 80 Insulated Exterior Door,39,0,39,finished_units
+2025-02,Building Remodeler,remodeler,WIN-2436,24 x 36 Vinyl Window,21,1,20,finished_units
+2025-02,Building Remodeler,remodeler,WIN-3648,36 x 48 Vinyl Window,0,0,0,finished_units
+2025-02,Building Remodeler,remodeler,DOOR-3680,36 x 80 Insulated Exterior Door,18,1,17,finished_units
+2025-03,Building Houses Company,builder,WIN-2436,24 x 36 Vinyl Window,106,0,106,finished_units
+2025-03,Building Houses Company,builder,WIN-3648,36 x 48 Vinyl Window,83,2,81,finished_units
+2025-03,Building Houses Company,builder,DOOR-3680,36 x 80 Insulated Exterior Door,68,0,68,finished_units
+2025-03,Building Supply Company,distributor,WIN-2436,24 x 36 Vinyl Window,74,0,74,finished_units
+2025-03,Building Supply Company,distributor,WIN-3648,36 x 48 Vinyl Window,60,0,60,finished_units
+2025-03,Building Supply Company,distributor,DOOR-3680,36 x 80 Insulated Exterior Door,44,0,44,finished_units
+2025-03,Building Remodeler,remodeler,WIN-2436,24 x 36 Vinyl Window,25,0,25,finished_units
+2025-03,Building Remodeler,remodeler,WIN-3648,36 x 48 Vinyl Window,14,0,14,finished_units
+2025-03,Building Remodeler,remodeler,DOOR-3680,36 x 80 Insulated Exterior Door,21,0,21,finished_units
+2025-04,Building Houses Company,builder,WIN-2436,24 x 36 Vinyl Window,117,0,117,finished_units
+2025-04,Building Houses Company,builder,WIN-3648,36 x 48 Vinyl Window,92,0,92,finished_units
+2025-04,Building Houses Company,builder,DOOR-3680,36 x 80 Insulated Exterior Door,68,0,68,finished_units
+2025-04,Building Supply Company,distributor,WIN-2436,24 x 36 Vinyl Window,82,2,80,finished_units
+2025-04,Building Supply Company,distributor,WIN-3648,36 x 48 Vinyl Window,67,0,67,finished_units
+2025-04,Building Supply Company,distributor,DOOR-3680,36 x 80 Insulated Exterior Door,50,2,48,finished_units
+2025-04,Building Remodeler,remodeler,WIN-2436,24 x 36 Vinyl Window,28,0,28,finished_units
+2025-04,Building Remodeler,remodeler,WIN-3648,36 x 48 Vinyl Window,16,0,16,finished_units
+2025-04,Building Remodeler,remodeler,DOOR-3680,36 x 80 Insulated Exterior Door,24,0,24,finished_units
+2025-05,Building Houses Company,builder,WIN-2436,24 x 36 Vinyl Window,127,0,127,finished_units
+2025-05,Building Houses Company,builder,WIN-3648,36 x 48 Vinyl Window,100,0,100,finished_units
+2025-05,Building Houses Company,builder,DOOR-3680,36 x 80 Insulated Exterior Door,75,0,75,finished_units
+2025-05,Building Supply Company,distributor,WIN-2436,24 x 36 Vinyl Window,90,0,90,finished_units
+2025-05,Building Supply Company,distributor,WIN-3648,36 x 48 Vinyl Window,66,0,66,finished_units
+2025-05,Building Supply Company,distributor,DOOR-3680,36 x 80 Insulated Exterior Door,55,0,55,finished_units
+2025-05,Building Remodeler,remodeler,WIN-2436,24 x 36 Vinyl Window,31,0,31,finished_units
+2025-05,Building Remodeler,remodeler,WIN-3648,36 x 48 Vinyl Window,19,1,18,finished_units
+2025-05,Building Remodeler,remodeler,DOOR-3680,36 x 80 Insulated Exterior Door,26,0,26,finished_units
+2025-06,Building Houses Company,builder,WIN-2436,24 x 36 Vinyl Window,135,4,131,finished_units
+2025-06,Building Houses Company,builder,WIN-3648,36 x 48 Vinyl Window,106,0,106,finished_units
+2025-06,Building Houses Company,builder,DOOR-3680,36 x 80 Insulated Exterior Door,80,2,78,finished_units
+2025-06,Building Supply Company,distributor,WIN-2436,24 x 36 Vinyl Window,95,0,95,finished_units
+2025-06,Building Supply Company,distributor,WIN-3648,36 x 48 Vinyl Window,70,0,70,finished_units
+2025-06,Building Supply Company,distributor,DOOR-3680,36 x 80 Insulated Exterior Door,59,0,59,finished_units
+2025-06,Building Remodeler,remodeler,WIN-2436,24 x 36 Vinyl Window,26,0,26,finished_units
+2025-06,Building Remodeler,remodeler,WIN-3648,36 x 48 Vinyl Window,21,0,21,finished_units
+2025-06,Building Remodeler,remodeler,DOOR-3680,36 x 80 Insulated Exterior Door,29,0,29,finished_units
+2025-07,Building Houses Company,builder,WIN-2436,24 x 36 Vinyl Window,138,0,138,finished_units
+2025-07,Building Houses Company,builder,WIN-3648,36 x 48 Vinyl Window,102,0,102,finished_units
+2025-07,Building Houses Company,builder,DOOR-3680,36 x 80 Insulated Exterior Door,82,0,82,finished_units
+2025-07,Building Supply Company,distributor,WIN-2436,24 x 36 Vinyl Window,98,0,98,finished_units
+2025-07,Building Supply Company,distributor,WIN-3648,36 x 48 Vinyl Window,73,2,71,finished_units
+2025-07,Building Supply Company,distributor,DOOR-3680,36 x 80 Insulated Exterior Door,61,0,61,finished_units
+2025-07,Building Remodeler,remodeler,WIN-2436,24 x 36 Vinyl Window,28,0,28,finished_units
+2025-07,Building Remodeler,remodeler,WIN-3648,36 x 48 Vinyl Window,22,0,22,finished_units
+2025-07,Building Remodeler,remodeler,DOOR-3680,36 x 80 Insulated Exterior Door,23,0,23,finished_units
+2025-08,Building Houses Company,builder,WIN-2436,24 x 36 Vinyl Window,135,0,135,finished_units
+2025-08,Building Houses Company,builder,WIN-3648,36 x 48 Vinyl Window,99,0,99,finished_units
+2025-08,Building Houses Company,builder,DOOR-3680,36 x 80 Insulated Exterior Door,81,0,81,finished_units
+2025-08,Building Supply Company,distributor,WIN-2436,24 x 36 Vinyl Window,89,0,89,finished_units
+2025-08,Building Supply Company,distributor,WIN-3648,36 x 48 Vinyl Window,71,0,71,finished_units
+2025-08,Building Supply Company,distributor,DOOR-3680,36 x 80 Insulated Exterior Door,60,0,60,finished_units
+2025-08,Building Remodeler,remodeler,WIN-2436,24 x 36 Vinyl Window,28,1,27,finished_units
+2025-08,Building Remodeler,remodeler,WIN-3648,36 x 48 Vinyl Window,23,0,23,finished_units
+2025-08,Building Remodeler,remodeler,DOOR-3680,36 x 80 Insulated Exterior Door,23,1,22,finished_units
+2025-09,Building Houses Company,builder,WIN-2436,24 x 36 Vinyl Window,127,0,127,finished_units
+2025-09,Building Houses Company,builder,WIN-3648,36 x 48 Vinyl Window,93,3,90,finished_units
+2025-09,Building Houses Company,builder,DOOR-3680,36 x 80 Insulated Exterior Door,76,0,76,finished_units
+2025-09,Building Supply Company,distributor,WIN-2436,24 x 36 Vinyl Window,83,0,83,finished_units
+2025-09,Building Supply Company,distributor,WIN-3648,36 x 48 Vinyl Window,67,0,67,finished_units
+2025-09,Building Supply Company,distributor,DOOR-3680,36 x 80 Insulated Exterior Door,50,0,50,finished_units
+2025-09,Building Remodeler,remodeler,WIN-2436,24 x 36 Vinyl Window,27,0,27,finished_units
+2025-09,Building Remodeler,remodeler,WIN-3648,36 x 48 Vinyl Window,22,0,22,finished_units
+2025-09,Building Remodeler,remodeler,DOOR-3680,36 x 80 Insulated Exterior Door,23,0,23,finished_units
+2025-10,Building Houses Company,builder,WIN-2436,24 x 36 Vinyl Window,113,0,113,finished_units
+2025-10,Building Houses Company,builder,WIN-3648,36 x 48 Vinyl Window,88,0,88,finished_units
+2025-10,Building Houses Company,builder,DOOR-3680,36 x 80 Insulated Exterior Door,72,0,72,finished_units
+2025-10,Building Supply Company,distributor,WIN-2436,24 x 36 Vinyl Window,79,2,77,finished_units
+2025-10,Building Supply Company,distributor,WIN-3648,36 x 48 Vinyl Window,64,0,64,finished_units
+2025-10,Building Supply Company,distributor,DOOR-3680,36 x 80 Insulated Exterior Door,47,1,46,finished_units
+2025-10,Building Remodeler,remodeler,WIN-2436,24 x 36 Vinyl Window,26,0,26,finished_units
+2025-10,Building Remodeler,remodeler,WIN-3648,36 x 48 Vinyl Window,15,0,15,finished_units
+2025-10,Building Remodeler,remodeler,DOOR-3680,36 x 80 Insulated Exterior Door,22,0,22,finished_units
+2025-11,Building Houses Company,builder,WIN-2436,24 x 36 Vinyl Window,103,0,103,finished_units
+2025-11,Building Houses Company,builder,WIN-3648,36 x 48 Vinyl Window,81,0,81,finished_units
+2025-11,Building Houses Company,builder,DOOR-3680,36 x 80 Insulated Exterior Door,60,0,60,finished_units
+2025-11,Building Supply Company,distributor,WIN-2436,24 x 36 Vinyl Window,73,0,73,finished_units
+2025-11,Building Supply Company,distributor,WIN-3648,36 x 48 Vinyl Window,59,0,59,finished_units
+2025-11,Building Supply Company,distributor,DOOR-3680,36 x 80 Insulated Exterior Door,44,0,44,finished_units
+2025-11,Building Remodeler,remodeler,WIN-2436,24 x 36 Vinyl Window,25,0,25,finished_units
+2025-11,Building Remodeler,remodeler,WIN-3648,36 x 48 Vinyl Window,14,1,13,finished_units
+2025-11,Building Remodeler,remodeler,DOOR-3680,36 x 80 Insulated Exterior Door,21,0,21,finished_units
+2025-12,Building Houses Company,builder,WIN-2436,24 x 36 Vinyl Window,96,3,93,finished_units
+2025-12,Building Houses Company,builder,WIN-3648,36 x 48 Vinyl Window,76,0,76,finished_units
+2025-12,Building Houses Company,builder,DOOR-3680,36 x 80 Insulated Exterior Door,56,2,54,finished_units
+2025-12,Building Supply Company,distributor,WIN-2436,24 x 36 Vinyl Window,68,0,68,finished_units
+2025-12,Building Supply Company,distributor,WIN-3648,36 x 48 Vinyl Window,49,0,49,finished_units
+2025-12,Building Supply Company,distributor,DOOR-3680,36 x 80 Insulated Exterior Door,42,0,42,finished_units
+2025-12,Building Remodeler,remodeler,WIN-2436,24 x 36 Vinyl Window,24,0,24,finished_units
+2025-12,Building Remodeler,remodeler,WIN-3648,36 x 48 Vinyl Window,14,0,14,finished_units
+2025-12,Building Remodeler,remodeler,DOOR-3680,36 x 80 Insulated Exterior Door,21,0,21,finished_units

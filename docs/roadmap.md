@@ -58,6 +58,10 @@ milestone specification.
 
 ## Milestone 3: Introduce a fictional demand scenario
 
+**Status:** Implemented
+
+**Specification:** `docs/specs/milestone-03-fictional-demand.md`
+
 **Learning focus:** External signals versus internal demand
 
 Potential outcomes:
@@ -69,6 +73,12 @@ Potential outcomes:
 - Present the data and assumptions in an inspectable report or dashboard view.
 
 Decision gate: define the fictional products, customers, time horizon, and meaning of demand.
+
+The approved scenario uses three building-component products and three
+fictional customers over January 2024 through December 2025. Internal demand
+is gross accepted order units minus cancellations, assigned to the requested
+ship month. The complete synthetic history is stored as a static,
+version-controlled CSV and is never calculated from the FRED indicator.
 
 ## Milestone 4: Forecasting and forecast performance
 

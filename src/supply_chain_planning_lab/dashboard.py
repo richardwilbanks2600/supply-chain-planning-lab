@@ -10,6 +10,15 @@ import streamlit as st
 
 from supply_chain_planning_lab.api import FredApiError
 from supply_chain_planning_lab.cli import DEFAULT_START_DATE, SERIES_ID
+from supply_chain_planning_lab.demand import (
+    CUSTOMERS,
+    PRODUCTS,
+    DemandDataError,
+    filter_demand,
+    load_static_demand,
+    monthly_demand,
+    summarize_demand,
+)
 from supply_chain_planning_lab.inspection import summarize_records
 from supply_chain_planning_lab.logging_config import configure_logging
 from supply_chain_planning_lab.output import processed_csv_text
@@ -32,9 +41,87 @@ def main() -> None:
 
     st.title("Supply Chain Planning Lab")
     st.write(
-        "Retrieve and inspect the FRED PERMIT construction-market indicator "
-        "through the project's shared validation workflow."
+        "Compare a fixed fictional customer-demand scenario with a separately "
+        "validated external construction-market indicator."
     )
+    demand_tab, external_tab = st.tabs(
+        ("Internal demand", "External market indicator")
+    )
+    with demand_tab:
+        _render_internal_demand()
+    with external_tab:
+        _render_external_indicator()
+
+
+def _render_internal_demand() -> None:
+    """Render the validated static scenario without contacting FRED."""
+
+    st.header("Static internal demand")
+    st.write(
+        "These fictional order records are stored in a version-controlled CSV. "
+        "Dashboard reruns load the same values; they do not generate demand."
+    )
+    st.caption(
+        "Internal demand = gross ordered units - cancelled units, assigned to "
+        "the customer's requested ship month."
+    )
+    try:
+        records = load_static_demand()
+    except (OSError, UnicodeError, DemandDataError) as exc:
+        logger.error("Static demand could not be loaded: %s", exc)
+        st.error(f"Static demand could not be loaded: {exc}")
+        return
+
+    customer_choice = st.selectbox(
+        "Demand customer", ("All customers", *CUSTOMERS)
+    )
+    product_choice = st.selectbox(
+        "Demand product", ("All products", *PRODUCTS)
+    )
+    selected = filter_demand(
+        records,
+        customer=None if customer_choice == "All customers" else customer_choice,
+        product_sku=None if product_choice == "All products" else product_choice,
+    )
+    summary = summarize_demand(selected)
+
+    gross, cancelled, demand = st.columns(3)
+    gross.metric("Gross ordered units", f"{summary.gross_order_units:,}")
+    cancelled.metric("Cancelled units", f"{summary.cancelled_units:,}")
+    demand.metric("Internal demand units", f"{summary.demand_units:,}")
+
+    st.subheader("Monthly internal demand")
+    st.line_chart(monthly_demand(selected), x="period", y="demand_units")
+
+    st.subheader("Order details")
+    st.dataframe(
+        selected,
+        hide_index=True,
+        width="stretch",
+        column_config={
+            "period": "Requested ship month",
+            "customer": "Customer",
+            "customer_type": "Customer type",
+            "product_sku": "Product SKU",
+            "product_name": "Product",
+            "gross_order_units": st.column_config.NumberColumn(
+                "Gross orders", format="%d"
+            ),
+            "cancelled_units": st.column_config.NumberColumn(
+                "Cancelled", format="%d"
+            ),
+            "demand_units": st.column_config.NumberColumn(
+                "Internal demand", format="%d"
+            ),
+            "unit": "Unit",
+        },
+    )
+
+
+def _render_external_indicator() -> None:
+    """Render the separately loaded FRED indicator workflow."""
+
+    st.header("External market indicator")
     st.info(
         "Building permits are an external market indicator. They are not "
         "customer orders or a company demand forecast."

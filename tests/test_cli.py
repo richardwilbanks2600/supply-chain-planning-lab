@@ -12,7 +12,7 @@ def test_installed_command_smoke_check_does_not_call_fred(
 
     captured = capsys.readouterr()
     assert exit_code == 0
-    assert "Supply Chain Planning Lab 0.3.0" in captured.out
+    assert "Supply Chain Planning Lab 0.4.0" in captured.out
     assert "FRED_API_KEY: not configured" in captured.out
 
 
@@ -105,3 +105,34 @@ def test_inspect_command_fails_duplicates_and_suppresses_measures(
     assert "Duplicate periods: 2026-01" in captured.out
     assert "Descriptive measures: unavailable" in captured.out
     assert "Minimum:" not in captured.out
+
+
+def test_demand_command_loads_fixed_data_without_an_api_key(
+    monkeypatch, capsys
+) -> None:
+    monkeypatch.delenv("FRED_API_KEY", raising=False)
+    monkeypatch.setattr("supply_chain_planning_lab.cli.load_dotenv", lambda: None)
+
+    exit_code = main(
+        [
+            "demand",
+            "--start-period",
+            "2024-01",
+            "--end-period",
+            "2024-01",
+            "--customer",
+            "Building Houses Company",
+            "--product",
+            "WIN-2436",
+            "--limit",
+            "1",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "Generation: none" in captured.out
+    assert "Selected records: 1" in captured.out
+    assert "Gross ordered units: 87" in captured.out
+    assert "Cancelled units: 3" in captured.out
+    assert "Internal demand units: 84" in captured.out

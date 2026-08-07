@@ -11,6 +11,15 @@ from typing import Sequence
 from dotenv import load_dotenv
 
 from .api import FredApiError
+from .demand import (
+    CUSTOMERS,
+    DEMAND_FIELDS,
+    PRODUCTS,
+    DemandDataError,
+    filter_demand,
+    load_static_demand,
+    summarize_demand,
+)
 from .inspection import (
     ProcessedDataError,
     filter_records,
@@ -142,6 +151,42 @@ def build_parser() -> argparse.ArgumentParser:
         help="maximum rows to list after filtering (default: all)",
     )
 
+    demand_parser = subparsers.add_parser(
+        "demand",
+        help="Inspect the fixed fictional internal-demand scenario.",
+    )
+    demand_parser.add_argument(
+        "--start-period",
+        type=month_period,
+        default=None,
+        help="first requested ship month to include, in YYYY-MM format",
+    )
+    demand_parser.add_argument(
+        "--end-period",
+        type=month_period,
+        default=None,
+        help="last requested ship month to include, in YYYY-MM format",
+    )
+    demand_parser.add_argument(
+        "--customer",
+        choices=tuple(CUSTOMERS),
+        default=None,
+        help="customer to include (default: all)",
+    )
+    demand_parser.add_argument(
+        "--product",
+        choices=tuple(PRODUCTS),
+        default=None,
+        metavar="SKU",
+        help="product SKU to include (default: all)",
+    )
+    demand_parser.add_argument(
+        "--limit",
+        type=positive_integer,
+        default=None,
+        help="maximum rows to list after filtering (default: all)",
+    )
+
     return parser
 
 
@@ -239,6 +284,49 @@ def run_inspect(
     return 1 if report.duplicate_periods else 0
 
 
+def run_demand(
+    *,
+    start_period: str | None,
+    end_period: str | None,
+    customer: str | None,
+    product_sku: str | None,
+    limit: int | None,
+) -> int:
+    """Validate, filter, and display the packaged demand scenario."""
+
+    try:
+        records = load_static_demand()
+        selected = filter_demand(
+            records,
+            start_period=start_period,
+            end_period=end_period,
+            customer=customer,
+            product_sku=product_sku,
+        )
+    except (OSError, UnicodeError, DemandDataError) as exc:
+        logger.error("Static-demand inspection failed: %s", exc)
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+
+    summary = summarize_demand(selected)
+    periods = sorted({record["period"] for record in selected})
+    coverage = f"{periods[0]} through {periods[-1]}" if periods else "none"
+    print("Scenario: fixed fictional internal demand")
+    print("Generation: none; values are loaded from a version-controlled CSV")
+    print(f"Selected coverage: {coverage}")
+    print(f"Selected records: {summary.record_count}")
+    print(f"Gross ordered units: {summary.gross_order_units:,}")
+    print(f"Cancelled units: {summary.cancelled_units:,}")
+    print(f"Internal demand units: {summary.demand_units:,}")
+
+    displayed = selected[:limit] if limit is not None else selected
+    print(f"Listed records: {len(displayed)}")
+    print(",".join(DEMAND_FIELDS))
+    for record in displayed:
+        print(",".join(str(record[field]) for field in DEMAND_FIELDS))
+    return 0
+
+
 def _period_list(periods: Sequence[str]) -> str:
     """Format detected periods without overwhelming the console."""
 
@@ -293,6 +381,16 @@ def main(argv: Sequence[str] | None = None) -> int:
             input_csv=args.input_csv,
             start_period=args.start_period,
             end_period=args.end_period,
+            limit=args.limit,
+        )
+
+    if args.command == "demand":
+        logger.info("Inspecting the packaged static-demand scenario.")
+        return run_demand(
+            start_period=args.start_period,
+            end_period=args.end_period,
+            customer=args.customer,
+            product_sku=args.product,
             limit=args.limit,
         )
 
