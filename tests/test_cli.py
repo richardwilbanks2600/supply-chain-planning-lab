@@ -12,7 +12,7 @@ def test_installed_command_smoke_check_does_not_call_fred(
 
     captured = capsys.readouterr()
     assert exit_code == 0
-    assert "Supply Chain Planning Lab 0.8.0" in captured.out
+    assert "Supply Chain Planning Lab 0.9.0" in captured.out
     assert "FRED_API_KEY: not configured" in captured.out
 
 
@@ -253,3 +253,30 @@ def test_procurement_command_calculates_bom_and_supplier_risk_without_api_key(
     assert "GLASS-SQFT,6,0.667,0.981,0.500" in captured.out
     assert "GLASS-SQFT,0,2536,14285" in captured.out
     assert "2025-01,GLASS-SQFT,8490,5000,4000,2000,14285" in captured.out
+
+
+def test_capacity_command_allocates_shared_work_center_without_api_key(
+    monkeypatch, capsys
+) -> None:
+    monkeypatch.delenv("FRED_API_KEY", raising=False)
+    monkeypatch.setattr("supply_chain_planning_lab.cli.load_dotenv", lambda: None)
+
+    exit_code = main(
+        [
+            "capacity-plan",
+            "--origin",
+            "2024-12",
+            "--work-center",
+            "WINDOW-ASSEMBLY",
+            "--limit",
+            "1",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "Plan grain: monthly product and work-center capacity" in captured.out
+    assert "Calendar: 20 days x 1 shifts x 8 hours" in captured.out
+    assert "Overloaded work-center months: 12" in captured.out
+    assert "2025-01,WINDOW-ASSEMBLY,144.0,151.2,105.0,-7.2,yes,959,52" in captured.out
+    assert "2025-01,WINDOW-ASSEMBLY,WIN-2436,607,0,607,8,576,31" in captured.out

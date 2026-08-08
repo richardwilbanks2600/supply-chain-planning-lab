@@ -191,6 +191,10 @@ full quantity or adjust them by supplier OTIF.
 
 ## Milestone 8: Capacity and production planning
 
+**Status:** Implemented
+
+**Specification:** `docs/specs/milestone-08-capacity-planning.md`
+
 **Learning focus:** Feasibility, capacity loading, and scheduling trade-offs
 
 Potential outcomes:
@@ -202,6 +206,14 @@ Potential outcomes:
 - Explore scenarios such as overtime, demand changes, downtime, or supplier delays.
 
 Decision gate: agree on the capacity model and scheduling assumptions before attempting optimization.
+
+The implemented model routes both windows through shared Window Assembly and
+the exterior door through Door Assembly. Monthly effective capacity combines
+an adjustable working calendar, planned downtime, and overtime. Product load
+uses adjustable run rates and fixed setup hours. When a work center is
+overloaded, runtime is allocated proportionally and whole-unit deferred
+production carries forward. The result is explicitly a monthly finite-capacity
+teaching plan rather than detailed sequencing or optimization.
 
 ## Milestone 9: Teaching dashboard integration
 

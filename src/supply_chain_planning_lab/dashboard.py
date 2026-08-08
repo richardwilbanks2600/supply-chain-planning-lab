@@ -9,6 +9,20 @@ from dotenv import load_dotenv
 import streamlit as st
 
 from supply_chain_planning_lab.api import FredApiError
+from supply_chain_planning_lab.capacity import (
+    DEFAULT_DOWNTIME_PERCENT,
+    DEFAULT_HOURS_PER_SHIFT,
+    DEFAULT_RUN_RATES,
+    DEFAULT_SETUP_HOURS,
+    DEFAULT_SHIFTS_PER_DAY,
+    DEFAULT_WORKING_DAYS,
+    WORK_CENTERS,
+    CapacityPolicy,
+    build_capacity_plan,
+    filter_capacity_products,
+    filter_work_centers,
+    summarize_capacity_plan,
+)
 from supply_chain_planning_lab.cli import DEFAULT_START_DATE, SERIES_ID
 from supply_chain_planning_lab.demand import (
     CUSTOMERS,
@@ -52,7 +66,10 @@ from supply_chain_planning_lab.materials import (
     COMPONENTS,
     DEFAULT_MATERIAL_INVENTORY,
 )
-from supply_chain_planning_lab.planning_workflow import prepare_procurement_inputs
+from supply_chain_planning_lab.planning_workflow import (
+    ProcurementInputs,
+    prepare_procurement_inputs,
+)
 from supply_chain_planning_lab.procurement import (
     RECEIPT_TREATMENTS,
     SAFETY_STOCK_METHODS,
@@ -94,6 +111,7 @@ def main() -> None:
         fred_forecast_tab,
         inventory_tab,
         procurement_tab,
+        capacity_tab,
         external_tab,
     ) = st.tabs(
         (
@@ -102,6 +120,7 @@ def main() -> None:
             "FRED-informed forecast",
             "Inventory plan",
             "Materials and procurement",
+            "Capacity plan",
             "External market indicator",
         )
     )
@@ -118,11 +137,17 @@ def main() -> None:
             inventory_scenario = _render_inventory_plan(scenario[0], scenario[2])
     with procurement_tab:
         if scenario is not None:
-            _render_procurement_plan(
+            procurement_inputs = _render_procurement_plan(
                 scenario[0],
                 scenario[2],
                 inventory_scenario[0],
                 inventory_scenario[1],
+            )
+    with capacity_tab:
+        if scenario is not None:
+            _render_capacity_plan(
+                procurement_inputs,
+                inventory_scenario[0],
             )
     with external_tab:
         _render_external_indicator()
@@ -670,7 +695,7 @@ def _render_procurement_plan(
     assumptions: DemandAssumptions,
     forecast_origin: str,
     finished_goods_policy: InventoryPolicy,
-) -> None:
+) -> ProcurementInputs:
     """Render BOM, material purchasing, and supplier-risk calculations."""
 
     st.header("Materials, procurement, and supplier uncertainty")
@@ -915,6 +940,208 @@ def _render_procurement_plan(
         "approximation. Risk-adjusted receipts are expected availability, not a "
         "guarantee. This plan does not automatically issue orders or reschedule "
         "production around shortages."
+    )
+    return inputs
+
+
+def _render_capacity_plan(
+    inputs: ProcurementInputs,
+    forecast_origin: str,
+) -> None:
+    """Render finite monthly work-center capacity and deferred production."""
+
+    st.header("Capacity and constrained production plan")
+    st.write(
+        "This view converts the Inventory plan's net production requirements into "
+        "work-center hours, compares them with effective capacity, and carries "
+        "unbuilt units forward as deferred production."
+    )
+    st.caption(
+        f"The plan follows forecast origin {forecast_origin}. Shared Window "
+        "Assembly capacity is allocated proportionally by requested runtime; "
+        "whole-unit output is rounded down."
+    )
+
+    calendar_columns = st.columns(4)
+    with calendar_columns[0]:
+        working_days = st.slider(
+            "Working days per month",
+            min_value=1,
+            max_value=31,
+            value=DEFAULT_WORKING_DAYS,
+        )
+    with calendar_columns[1]:
+        shifts_per_day = st.slider(
+            "Shifts per day",
+            min_value=1,
+            max_value=3,
+            value=DEFAULT_SHIFTS_PER_DAY,
+        )
+    with calendar_columns[2]:
+        hours_per_shift = st.slider(
+            "Hours per shift",
+            min_value=4.0,
+            max_value=12.0,
+            value=DEFAULT_HOURS_PER_SHIFT,
+            step=0.5,
+        )
+    with calendar_columns[3]:
+        downtime_percent = st.slider(
+            "Planned downtime (%)",
+            min_value=0,
+            max_value=50,
+            value=int(DEFAULT_DOWNTIME_PERCENT),
+            step=5,
+        )
+
+    setup_hours = st.slider(
+        "Setup hours per active product",
+        min_value=0.0,
+        max_value=16.0,
+        value=DEFAULT_SETUP_HOURS,
+        step=1.0,
+    )
+    window_overtime, door_overtime = st.columns(2)
+    with window_overtime:
+        window_overtime_hours = st.slider(
+            "Window Assembly overtime hours",
+            min_value=0,
+            max_value=40,
+            value=0,
+            step=4,
+        )
+    with door_overtime:
+        door_overtime_hours = st.slider(
+            "Door Assembly overtime hours",
+            min_value=0,
+            max_value=40,
+            value=0,
+            step=4,
+        )
+
+    st.subheader("Product run rates")
+    run_rates: dict[str, float] = {}
+    rate_columns = st.columns(3)
+    for column, (product_sku, product_name) in zip(rate_columns, PRODUCTS.items()):
+        with column:
+            run_rates[product_sku] = float(
+                st.number_input(
+                    f"Run rate — {product_sku}",
+                    min_value=0.1,
+                    value=DEFAULT_RUN_RATES[product_sku],
+                    step=0.5,
+                    help=f"{product_name}, measured in units per hour.",
+                )
+            )
+
+    policy = CapacityPolicy(
+        working_days_per_month=working_days,
+        shifts_per_day=shifts_per_day,
+        hours_per_shift=hours_per_shift,
+        planned_downtime_percent=float(downtime_percent),
+        setup_hours_per_active_product=setup_hours,
+        overtime_hours={
+            "WINDOW-ASSEMBLY": float(window_overtime_hours),
+            "DOOR-ASSEMBLY": float(door_overtime_hours),
+        },
+        run_rates=run_rates,
+    )
+    plan = build_capacity_plan(
+        inputs.inventory_plan,
+        policy,
+        forecast_origin=forecast_origin,
+    )
+    summary = summarize_capacity_plan(plan)
+    overloads, deferred, utilization, planned = st.columns(4)
+    overloads.metric(
+        "Overloaded work-center months",
+        summary.overloaded_work_center_months,
+    )
+    deferred.metric("Ending deferred production", f"{summary.ending_deferred_units:,}")
+    utilization.metric(
+        "Maximum required utilization",
+        f"{summary.maximum_required_utilization_percent:.1f}%",
+    )
+    planned.metric("Planned production units", f"{summary.planned_production_units:,}")
+
+    work_center_id = st.selectbox(
+        "Capacity work center",
+        tuple(WORK_CENTERS),
+        format_func=lambda value: WORK_CENTERS[value],
+    )
+    selected_centers = filter_work_centers(
+        plan.work_centers,
+        work_center_id=work_center_id,
+    )
+    st.subheader("Required versus effective hours")
+    st.line_chart(
+        [
+            {
+                "period": row["period"],
+                "required_hours": row["required_hours"],
+                "effective_capacity_hours": row["effective_capacity_hours"],
+            }
+            for row in selected_centers
+        ],
+        x="period",
+        y=("required_hours", "effective_capacity_hours"),
+    )
+    st.dataframe(selected_centers, hide_index=True, width="stretch")
+
+    eligible_products = tuple(
+        product_sku
+        for product_sku in PRODUCTS
+        if plan.products
+        and next(
+            row["work_center_id"]
+            for row in plan.products
+            if row["product_sku"] == product_sku
+        )
+        == work_center_id
+    )
+    product_sku = st.selectbox(
+        "Capacity product",
+        eligible_products,
+        format_func=lambda value: f"{value} - {PRODUCTS[value]}",
+    )
+    selected_products = filter_capacity_products(
+        plan.products,
+        product_sku=product_sku,
+    )
+    st.subheader("Requested, planned, and deferred units")
+    st.line_chart(
+        [
+            {
+                "period": row["period"],
+                "total_requested": row["total_requested_units"],
+                "planned_production": row["planned_production_units"],
+                "ending_deferred": row["ending_deferred_units"],
+            }
+            for row in selected_products
+        ],
+        x="period",
+        y=("total_requested", "planned_production", "ending_deferred"),
+    )
+    st.dataframe(selected_products, hide_index=True, width="stretch")
+
+    example = selected_centers[0]
+    with st.expander("Show the first work-center calculation"):
+        st.code(
+            "effective capacity = regular hours x (1 - downtime %) + overtime\n"
+            "capacity gap = effective capacity - required hours",
+            language="text",
+        )
+        st.write(
+            f"For {example['period']}, {example['work_center_name']} has "
+            f"{example['effective_capacity_hours']:.1f} effective hours and "
+            f"requires {example['required_hours']:.1f}. Its capacity gap is "
+            f"{example['capacity_gap_hours']:+.1f} hours, so overload is "
+            f"{'present' if example['overloaded'] else 'not present'}."
+        )
+    st.warning(
+        "This is a monthly finite-capacity teaching plan, not detailed job "
+        "sequencing. Deferred production is not automatically reflected back into "
+        "finished-goods inventory or material purchase timing."
     )
 
 

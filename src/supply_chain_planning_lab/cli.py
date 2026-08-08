@@ -2,6 +2,7 @@
 
 import argparse
 import logging
+import math
 import os
 import sys
 from datetime import datetime
@@ -11,6 +12,21 @@ from typing import Sequence
 from dotenv import load_dotenv
 
 from .api import FredApiError
+from .capacity import (
+    DEFAULT_DOWNTIME_PERCENT,
+    DEFAULT_HOURS_PER_SHIFT,
+    DEFAULT_RUN_RATES,
+    DEFAULT_SETUP_HOURS,
+    DEFAULT_SHIFTS_PER_DAY,
+    DEFAULT_WORKING_DAYS,
+    WORK_CENTERS,
+    CapacityPlanningError,
+    CapacityPolicy,
+    build_capacity_plan,
+    filter_capacity_products,
+    filter_work_centers,
+    summarize_capacity_plan,
+)
 from .demand import (
     CUSTOMERS,
     DEFAULT_LAG_MONTHS,
@@ -147,6 +163,30 @@ def percentage(value: str) -> float:
         raise argparse.ArgumentTypeError("expected a percentage") from exc
     if not 0 <= parsed <= 100:
         raise argparse.ArgumentTypeError("expected a percentage from 0 through 100")
+    return parsed
+
+
+def positive_number(value: str) -> float:
+    """Validate a positive finite number."""
+
+    try:
+        parsed = float(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("expected a positive number") from exc
+    if not math.isfinite(parsed) or parsed <= 0:
+        raise argparse.ArgumentTypeError("expected a positive number")
+    return parsed
+
+
+def nonnegative_number(value: str) -> float:
+    """Validate a nonnegative finite number."""
+
+    try:
+        parsed = float(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("expected a nonnegative number") from exc
+    if not math.isfinite(parsed) or parsed < 0:
+        raise argparse.ArgumentTypeError("expected a nonnegative number")
     return parsed
 
 
@@ -427,6 +467,90 @@ def build_parser() -> argparse.ArgumentParser:
         type=positive_integer,
         default=None,
         help="maximum detail rows to list (default: all)",
+    )
+
+    capacity_parser = subparsers.add_parser(
+        "capacity-plan",
+        help="Compare production load with monthly work-center capacity.",
+    )
+    capacity_parser.add_argument(
+        "--origin",
+        choices=forecast_origins(),
+        default="2024-12",
+        help="historical FRED forecast origin (default: 2024-12)",
+    )
+    capacity_parser.add_argument(
+        "--working-days",
+        type=positive_integer,
+        default=DEFAULT_WORKING_DAYS,
+        help=f"working days per month (default: {DEFAULT_WORKING_DAYS})",
+    )
+    capacity_parser.add_argument(
+        "--shifts-per-day",
+        type=int,
+        choices=(1, 2, 3),
+        default=DEFAULT_SHIFTS_PER_DAY,
+        help=f"shifts per working day (default: {DEFAULT_SHIFTS_PER_DAY})",
+    )
+    capacity_parser.add_argument(
+        "--hours-per-shift",
+        type=positive_number,
+        default=DEFAULT_HOURS_PER_SHIFT,
+        help=f"hours per shift (default: {DEFAULT_HOURS_PER_SHIFT:g})",
+    )
+    capacity_parser.add_argument(
+        "--downtime-percent",
+        type=percentage,
+        default=DEFAULT_DOWNTIME_PERCENT,
+        help=f"planned regular-hour downtime (default: {DEFAULT_DOWNTIME_PERCENT:g})",
+    )
+    capacity_parser.add_argument(
+        "--setup-hours",
+        type=nonnegative_number,
+        default=DEFAULT_SETUP_HOURS,
+        help=f"setup hours per active product (default: {DEFAULT_SETUP_HOURS:g})",
+    )
+    capacity_parser.add_argument(
+        "--window-overtime",
+        type=nonnegative_number,
+        default=0.0,
+        help="Window Assembly overtime hours per month (default: 0)",
+    )
+    capacity_parser.add_argument(
+        "--door-overtime",
+        type=nonnegative_number,
+        default=0.0,
+        help="Door Assembly overtime hours per month (default: 0)",
+    )
+    for product_sku in PRODUCTS:
+        capacity_parser.add_argument(
+            f"--rate-{product_sku.lower()}",
+            type=positive_number,
+            default=DEFAULT_RUN_RATES[product_sku],
+            metavar="UNITS_PER_HOUR",
+            help=(
+                f"run rate for {product_sku} "
+                f"(default: {DEFAULT_RUN_RATES[product_sku]:g})"
+            ),
+        )
+    capacity_parser.add_argument(
+        "--work-center",
+        choices=tuple(WORK_CENTERS),
+        default=None,
+        help="work center to list (default: all)",
+    )
+    capacity_parser.add_argument(
+        "--product",
+        choices=tuple(PRODUCTS),
+        default=None,
+        metavar="SKU",
+        help="product to list (default: all)",
+    )
+    capacity_parser.add_argument(
+        "--limit",
+        type=positive_integer,
+        default=None,
+        help="maximum rows in each detail table (default: all)",
     )
 
     return parser
@@ -890,6 +1014,141 @@ def run_procurement_plan(
     return 0
 
 
+def run_capacity_plan(
+    *,
+    forecast_origin: str,
+    working_days: int,
+    shifts_per_day: int,
+    hours_per_shift: float,
+    downtime_percent: float,
+    setup_hours: float,
+    overtime_hours: dict[str, float],
+    run_rates: dict[str, float],
+    work_center_id: str | None,
+    product_sku: str | None,
+    limit: int | None,
+) -> int:
+    """Calculate the approved monthly finite-capacity production plan."""
+
+    try:
+        fred_records = load_fred_snapshot()
+        assumptions = default_assumptions()
+        demand_records = generate_demand(
+            fred_records,
+            assumptions,
+            demand_end_period="2026-01",
+        )
+        forecasts = calculate_driver_forecasts(
+            fred_records,
+            demand_records,
+            assumptions,
+            origin_start=forecast_origin,
+            origin_end=forecast_origin,
+            max_horizon=13,
+        )
+        inventory = build_inventory_plan(
+            forecasts,
+            default_inventory_policy(),
+            forecast_origin=forecast_origin,
+        )
+        policy = CapacityPolicy(
+            working_days_per_month=working_days,
+            shifts_per_day=shifts_per_day,
+            hours_per_shift=hours_per_shift,
+            planned_downtime_percent=downtime_percent,
+            setup_hours_per_active_product=setup_hours,
+            overtime_hours=overtime_hours,
+            run_rates=run_rates,
+        )
+        plan = build_capacity_plan(
+            inventory,
+            policy,
+            forecast_origin=forecast_origin,
+        )
+        work_centers = filter_work_centers(
+            plan.work_centers,
+            work_center_id=work_center_id,
+        )
+        products = filter_capacity_products(
+            plan.products,
+            product_sku=product_sku,
+        )
+        if work_center_id is not None:
+            products = [
+                row
+                for row in products
+                if row["work_center_id"] == work_center_id
+            ]
+    except (
+        OSError,
+        UnicodeError,
+        DemandDataError,
+        DriverForecastError,
+        InventoryPlanningError,
+        CapacityPlanningError,
+    ) as exc:
+        logger.error("Capacity planning failed: %s", exc)
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+
+    summary = summarize_capacity_plan(plan)
+    print("Plan grain: monthly product and work-center capacity")
+    print(f"Forecast origin: {forecast_origin}")
+    print(
+        f"Calendar: {working_days} days x {shifts_per_day} shifts x "
+        f"{hours_per_shift:g} hours"
+    )
+    print(f"Planned downtime: {downtime_percent:g}%")
+    print(f"Setup: {setup_hours:g} hours per active product")
+    print("Allocation: proportional requested runtime; whole units rounded down")
+    print(
+        "Overloaded work-center months: "
+        f"{summary.overloaded_work_center_months}"
+    )
+    print(f"Ending deferred production units: {summary.ending_deferred_units:,}")
+    print(
+        "Maximum required utilization: "
+        f"{summary.maximum_required_utilization_percent:.1f}%"
+    )
+
+    displayed_centers = work_centers[:limit] if limit is not None else work_centers
+    print(f"Listed work-center rows: {len(displayed_centers)}")
+    print(
+        "period,work_center,effective_hours,required_hours,utilization_percent,"
+        "capacity_gap,overloaded,planned_units,ending_deferred_units"
+    )
+    for record in displayed_centers:
+        print(
+            f"{record['period']},{record['work_center_id']},"
+            f"{record['effective_capacity_hours']:.1f},"
+            f"{record['required_hours']:.1f},"
+            f"{record['required_utilization_percent']:.1f},"
+            f"{record['capacity_gap_hours']:+.1f},"
+            f"{'yes' if record['overloaded'] else 'no'},"
+            f"{record['planned_production_units']},"
+            f"{record['ending_deferred_units']}"
+        )
+
+    displayed_products = products[:limit] if limit is not None else products
+    print(f"Listed product rows: {len(displayed_products)}")
+    print(
+        "period,work_center,product_sku,base_requirement,beginning_deferred,"
+        "total_requested,run_rate,planned_units,ending_deferred"
+    )
+    for record in displayed_products:
+        print(
+            f"{record['period']},{record['work_center_id']},"
+            f"{record['product_sku']},"
+            f"{record['base_production_requirement_units']},"
+            f"{record['beginning_deferred_units']},"
+            f"{record['total_requested_units']},"
+            f"{record['run_rate_units_per_hour']:g},"
+            f"{record['planned_production_units']},"
+            f"{record['ending_deferred_units']}"
+        )
+    return 0
+
+
 def _period_list(periods: Sequence[str]) -> str:
     """Format detected periods without overwhelming the console."""
 
@@ -1005,6 +1264,31 @@ def main(argv: Sequence[str] | None = None) -> int:
                 for component_sku in COMPONENTS
             },
             component_sku=args.component,
+            limit=args.limit,
+        )
+
+    if args.command == "capacity-plan":
+        logger.info("Calculating monthly finite-capacity production.")
+        return run_capacity_plan(
+            forecast_origin=args.origin,
+            working_days=args.working_days,
+            shifts_per_day=args.shifts_per_day,
+            hours_per_shift=args.hours_per_shift,
+            downtime_percent=args.downtime_percent,
+            setup_hours=args.setup_hours,
+            overtime_hours={
+                "WINDOW-ASSEMBLY": args.window_overtime,
+                "DOOR-ASSEMBLY": args.door_overtime,
+            },
+            run_rates={
+                product_sku: getattr(
+                    args,
+                    f"rate_{product_sku.lower().replace('-', '_')}",
+                )
+                for product_sku in PRODUCTS
+            },
+            work_center_id=args.work_center,
+            product_sku=args.product,
             limit=args.limit,
         )
 

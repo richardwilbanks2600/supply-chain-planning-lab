@@ -35,6 +35,8 @@ orders, company demand, or a forecast.
   purchase recommendations.
 - Compare supplier reliability, receipt-risk, and material safety-stock methods
   using a fixed fictional delivery history.
+- Compare production requirements with finite work-center capacity and carry
+  deferred production through a proportional allocation plan.
 - Write optional operational logs to the console and detailed logs to a file.
 - Explore the same validated records in a local Streamlit dashboard.
 - Test success and failure behavior with fixtures and mocks instead of live API
@@ -128,6 +130,7 @@ uv run planning-lab forecast --help
 uv run planning-lab fred-forecast --help
 uv run planning-lab inventory-plan --help
 uv run planning-lab procurement-plan --help
+uv run planning-lab capacity-plan --help
 ```
 
 ### Processed-data inspection
@@ -316,6 +319,34 @@ error and supplier lead-time variability. These are teaching comparisons, not
 optimized purchasing policies. See
 [`docs/specs/milestone-07-materials-and-procurement.md`](docs/specs/milestone-07-materials-and-procurement.md).
 
+### Capacity and constrained production
+
+Build the default monthly finite-capacity plan:
+
+```shell
+uv run planning-lab capacity-plan --origin 2024-12 --limit 12
+```
+
+Add Window Assembly overtime or inspect one work center:
+
+```shell
+uv run planning-lab capacity-plan \
+  --origin 2024-12 \
+  --window-overtime 40 \
+  --work-center WINDOW-ASSEMBLY
+```
+
+The plan converts product requirements into setup and runtime hours, compares
+them with regular hours adjusted for downtime plus overtime, and identifies
+overloaded work-center months. When capacity is insufficient, available
+runtime is distributed proportionally and unbuilt whole units carry forward as
+deferred production.
+
+Run rates, working days, shifts, hours, downtime, setup, and overtime are
+adjustable teaching assumptions. The output is a monthly finite-capacity plan,
+not optimized job sequencing. See
+[`docs/specs/milestone-08-capacity-planning.md`](docs/specs/milestone-08-capacity-planning.md).
+
 ### Logging
 
 Show operational `INFO` messages in the terminal:
@@ -376,10 +407,12 @@ the dashboard:
    suppliers, purchase timing, and safety-stock comparison.
 9. Switch between full and OTIF-adjusted scheduled receipts to see how supplier
    reliability changes purchase recommendations.
-10. Open **External market indicator** to work with live FRED data separately.
-11. Configure `FRED_API_KEY`, choose a first observation date, and select
+10. Open **Capacity plan** to change calendars, downtime, overtime, setup, or
+    run rates and inspect bottlenecks and deferred production.
+11. Open **External market indicator** to work with live FRED data separately.
+12. Configure `FRED_API_KEY`, choose a first observation date, and select
    **Load validated FRED data** for the external view.
-12. Review its descriptive measures, trend chart, trusted rows, and downloads.
+13. Review its descriptive measures, trend chart, trusted rows, and downloads.
 
 The dashboard calls the same FRED-snapshot validation and demand-calculation
 logic used by the CLI. Sliders adjust company market share, customer
@@ -431,6 +464,7 @@ key and do not contact the live FRED service. The suite covers:
 - inventory roll-forward, safety targets, net production, and manual examples;
 - BOM explosion, raw-material netting, supplier metrics, receipt risk, and
   statistical safety stock;
+- work-center load, finite-capacity allocation, overloads, and backlog;
 - console and file logging without secret disclosure;
 - a no-network CLI smoke check; and
 - a no-network Streamlit startup check.
@@ -456,6 +490,7 @@ file, chart, and table.
 |   |-- materials.py           # component catalog, BOM, and supplier history
 |   |-- procurement.py         # material safety stock and purchasing logic
 |   |-- planning_workflow.py   # forecast-to-procurement coordination
+|   |-- capacity.py            # finite work-center capacity and backlog
 |   |-- inspection.py          # processed-data quality and descriptions
 |   |-- logging_config.py      # console and file logging setup
 |   |-- metadata.py            # safe project setup information

@@ -61,6 +61,7 @@ def test_dashboard_starts_without_contacting_fred(monkeypatch) -> None:
     assert app.header[2].value == "FRED-informed demand forecast"
     assert app.header[3].value == "Inventory and net production requirements"
     assert app.header[4].value == "Materials, procurement, and supplier uncertainty"
+    assert app.header[5].value == "Capacity and constrained production plan"
     assert any(metric.label == "Internal demand units" for metric in app.metric)
     assert any(metric.label == "Mean absolute error" for metric in app.metric)
     assert any(slider.label == "Company market share (%)" for slider in app.slider)
@@ -91,6 +92,14 @@ def test_dashboard_starts_without_contacting_fred(monkeypatch) -> None:
         for selectbox in app.selectbox
     )
     assert any(metric.label == "Material purchase actions" for metric in app.metric)
+    assert any(slider.label == "Working days per month" for slider in app.slider)
+    assert any(slider.label == "Planned downtime (%)" for slider in app.slider)
+    assert any(
+        selectbox.label == "Capacity work center" for selectbox in app.selectbox
+    )
+    assert any(
+        metric.label == "Overloaded work-center months" for metric in app.metric
+    )
 
 
 def test_market_share_slider_recalculates_internal_demand(monkeypatch) -> None:
