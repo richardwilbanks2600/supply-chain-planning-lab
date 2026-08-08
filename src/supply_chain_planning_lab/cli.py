@@ -57,8 +57,26 @@ from .inventory import (
     InventoryPlanningError,
     InventoryPolicy,
     build_inventory_plan,
+    default_inventory_policy,
     filter_inventory_plan,
     summarize_inventory_plan,
+)
+from .materials import (
+    COMPONENTS,
+    DEFAULT_MATERIAL_INVENTORY,
+    MaterialDataError,
+)
+from .planning_workflow import prepare_procurement_inputs
+from .procurement import (
+    RECEIPT_TREATMENTS,
+    SAFETY_STOCK_METHODS,
+    SERVICE_LEVEL_Z,
+    ProcurementPlanningError,
+    ProcurementPolicy,
+    build_procurement_plan,
+    compare_safety_stock,
+    filter_procurement_plan,
+    summarize_procurement_plan,
 )
 from .logging_config import LoggingSetupError, configure_logging
 from .metadata import project_info
@@ -345,6 +363,66 @@ def build_parser() -> argparse.ArgumentParser:
         help="product SKU to list (default: all)",
     )
     inventory_parser.add_argument(
+        "--limit",
+        type=positive_integer,
+        default=None,
+        help="maximum detail rows to list (default: all)",
+    )
+
+    procurement_parser = subparsers.add_parser(
+        "procurement-plan",
+        help="Calculate BOM, material purchasing, and supplier-risk measures.",
+    )
+    procurement_parser.add_argument(
+        "--origin",
+        choices=forecast_origins(),
+        default="2024-12",
+        help="historical FRED forecast origin (default: 2024-12)",
+    )
+    procurement_parser.add_argument(
+        "--safety-method",
+        choices=SAFETY_STOCK_METHODS,
+        default="percentage",
+        help="material safety-stock method (default: percentage)",
+    )
+    procurement_parser.add_argument(
+        "--safety-stock-percent",
+        type=percentage,
+        default=25.0,
+        help="following-month material requirement held (default: 25)",
+    )
+    procurement_parser.add_argument(
+        "--service-level",
+        type=float,
+        choices=tuple(SERVICE_LEVEL_Z),
+        default=95.0,
+        help="statistical safety-stock service level (default: 95)",
+    )
+    procurement_parser.add_argument(
+        "--receipt-treatment",
+        choices=RECEIPT_TREATMENTS,
+        default="full",
+        help="scheduled-receipt treatment (default: full)",
+    )
+    for component_sku in COMPONENTS:
+        procurement_parser.add_argument(
+            f"--starting-{component_sku.lower()}",
+            type=nonnegative_integer,
+            default=DEFAULT_MATERIAL_INVENTORY[component_sku],
+            metavar="UNITS",
+            help=(
+                f"starting material inventory for {component_sku} "
+                f"(default: {DEFAULT_MATERIAL_INVENTORY[component_sku]})"
+            ),
+        )
+    procurement_parser.add_argument(
+        "--component",
+        choices=tuple(COMPONENTS),
+        default=None,
+        metavar="SKU",
+        help="component SKU to list (default: all)",
+    )
+    procurement_parser.add_argument(
         "--limit",
         type=positive_integer,
         default=None,
@@ -706,6 +784,112 @@ def run_inventory_plan(
     return 0
 
 
+def run_procurement_plan(
+    *,
+    forecast_origin: str,
+    safety_stock_method: str,
+    safety_stock_percent: float,
+    service_level: float,
+    receipt_treatment: str,
+    starting_inventory: dict[str, int],
+    component_sku: str | None,
+    limit: int | None,
+) -> int:
+    """Calculate the approved material and supplier-risk plan."""
+
+    try:
+        fred_records = load_fred_snapshot()
+        assumptions = default_assumptions()
+        inputs = prepare_procurement_inputs(
+            fred_records,
+            assumptions,
+            default_inventory_policy(),
+            forecast_origin=forecast_origin,
+        )
+        policy = ProcurementPolicy(
+            starting_inventory=starting_inventory,
+            safety_stock_method=safety_stock_method,
+            percentage=safety_stock_percent,
+            service_level=service_level,
+            receipt_treatment=receipt_treatment,
+        )
+        records = build_procurement_plan(
+            inputs.material_requirements,
+            inputs.supplier_performance,
+            inputs.material_error_stats,
+            policy,
+            forecast_origin=forecast_origin,
+        )
+        selected = filter_procurement_plan(records, component_sku=component_sku)
+        comparisons = compare_safety_stock(
+            inputs.material_requirements,
+            inputs.material_error_stats,
+            inputs.supplier_performance,
+            percentage=safety_stock_percent,
+            service_level=service_level,
+        )
+    except (
+        OSError,
+        UnicodeError,
+        DemandDataError,
+        DriverForecastError,
+        InventoryPlanningError,
+        MaterialDataError,
+        ProcurementPlanningError,
+    ) as exc:
+        logger.error("Procurement planning failed: %s", exc)
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+
+    summary = summarize_procurement_plan(selected)
+    print("Plan grain: monthly purchased-component requirements")
+    print(f"Forecast origin: {forecast_origin}")
+    print("BOM scrap: 0%")
+    print(f"Material safety-stock method: {safety_stock_method}")
+    print(f"Scheduled-receipt treatment: {receipt_treatment}")
+    print(f"Selected records: {summary.record_count}")
+    print(f"Purchase actions: {summary.purchase_action_count}")
+    print(f"Past-due release actions: {summary.past_due_action_count}")
+    print(f"Release-now actions: {summary.release_now_action_count}")
+    print(f"Receipts with risk adjustment: {summary.receipt_at_risk_count}")
+    print("Supplier performance:")
+    print("component_sku,delivery_count,on_time_rate,fill_rate,otif_rate")
+    for item in inputs.supplier_performance:
+        print(
+            f"{item.component_sku},{item.delivery_count},"
+            f"{item.on_time_rate:.3f},{item.fill_rate:.3f},{item.otif_rate:.3f}"
+        )
+    print("Safety-stock comparison:")
+    print("component_sku,none,percentage,statistical")
+    for item in comparisons:
+        print(
+            f"{item.component_sku},{item.none_target_units},"
+            f"{item.percentage_target_units},{item.statistical_target_units}"
+        )
+
+    displayed = selected[:limit] if limit is not None else selected
+    print(f"Listed records: {len(displayed)}")
+    print(
+        "period,component_sku,gross_requirement,beginning_inventory,"
+        "scheduled_receipt,usable_receipt,safety_target,net_purchase_receipt,"
+        "projected_ending,order_release,release_status"
+    )
+    for record in displayed:
+        print(
+            f"{record['period']},{record['component_sku']},"
+            f"{record['gross_requirement_units']},"
+            f"{record['beginning_inventory_units']},"
+            f"{record['scheduled_receipt_units']},"
+            f"{record['usable_scheduled_receipt_units']},"
+            f"{record['safety_stock_target_units']},"
+            f"{record['net_purchase_receipt_units']},"
+            f"{record['projected_ending_inventory_units']},"
+            f"{record['recommended_order_release_period']},"
+            f"{record['release_status']}"
+        )
+    return 0
+
+
 def _period_list(periods: Sequence[str]) -> str:
     """Format detected periods without overwhelming the console."""
 
@@ -802,6 +986,25 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "DOOR-3680": args.starting_door_3680,
             },
             product_sku=args.product,
+            limit=args.limit,
+        )
+
+    if args.command == "procurement-plan":
+        logger.info("Calculating material and supplier-risk requirements.")
+        return run_procurement_plan(
+            forecast_origin=args.origin,
+            safety_stock_method=args.safety_method,
+            safety_stock_percent=args.safety_stock_percent,
+            service_level=args.service_level,
+            receipt_treatment=args.receipt_treatment,
+            starting_inventory={
+                component_sku: getattr(
+                    args,
+                    f"starting_{component_sku.lower().replace('-', '_')}",
+                )
+                for component_sku in COMPONENTS
+            },
+            component_sku=args.component,
             limit=args.limit,
         )
 

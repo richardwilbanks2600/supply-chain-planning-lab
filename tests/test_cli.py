@@ -12,7 +12,7 @@ def test_installed_command_smoke_check_does_not_call_fred(
 
     captured = capsys.readouterr()
     assert exit_code == 0
-    assert "Supply Chain Planning Lab 0.7.0" in captured.out
+    assert "Supply Chain Planning Lab 0.8.0" in captured.out
     assert "FRED_API_KEY: not configured" in captured.out
 
 
@@ -221,3 +221,35 @@ def test_inventory_plan_command_calculates_requirements_without_an_api_key(
     assert "Safety stock: 25% of following-month forecast" in captured.out
     assert "Selected records: 12" in captured.out
     assert "2025-01,WIN-2436,718,300,0,300,2025-02,756,189,607,189" in captured.out
+
+
+def test_procurement_command_calculates_bom_and_supplier_risk_without_api_key(
+    monkeypatch, capsys
+) -> None:
+    monkeypatch.delenv("FRED_API_KEY", raising=False)
+    monkeypatch.setattr("supply_chain_planning_lab.cli.load_dotenv", lambda: None)
+
+    exit_code = main(
+        [
+            "procurement-plan",
+            "--origin",
+            "2024-12",
+            "--safety-method",
+            "statistical",
+            "--receipt-treatment",
+            "risk_adjusted",
+            "--component",
+            "GLASS-SQFT",
+            "--limit",
+            "1",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "Plan grain: monthly purchased-component requirements" in captured.out
+    assert "Material safety-stock method: statistical" in captured.out
+    assert "Scheduled-receipt treatment: risk_adjusted" in captured.out
+    assert "GLASS-SQFT,6,0.667,0.981,0.500" in captured.out
+    assert "GLASS-SQFT,0,2536,14285" in captured.out
+    assert "2025-01,GLASS-SQFT,8490,5000,4000,2000,14285" in captured.out

@@ -47,6 +47,22 @@ from supply_chain_planning_lab.inventory import (
     filter_inventory_plan,
     summarize_inventory_plan,
 )
+from supply_chain_planning_lab.materials import (
+    BOM,
+    COMPONENTS,
+    DEFAULT_MATERIAL_INVENTORY,
+)
+from supply_chain_planning_lab.planning_workflow import prepare_procurement_inputs
+from supply_chain_planning_lab.procurement import (
+    RECEIPT_TREATMENTS,
+    SAFETY_STOCK_METHODS,
+    SERVICE_LEVEL_Z,
+    ProcurementPolicy,
+    build_procurement_plan,
+    compare_safety_stock,
+    filter_procurement_plan,
+    summarize_procurement_plan,
+)
 from supply_chain_planning_lab.inspection import summarize_records
 from supply_chain_planning_lab.logging_config import configure_logging
 from supply_chain_planning_lab.output import processed_csv_text
@@ -72,12 +88,20 @@ def main() -> None:
         "Translate a fixed FRED market history into an interactive fictional "
         "customer-demand scenario with visible assumptions."
     )
-    demand_tab, forecast_tab, fred_forecast_tab, inventory_tab, external_tab = st.tabs(
+    (
+        demand_tab,
+        forecast_tab,
+        fred_forecast_tab,
+        inventory_tab,
+        procurement_tab,
+        external_tab,
+    ) = st.tabs(
         (
             "Internal demand",
             "Forecast baselines",
             "FRED-informed forecast",
             "Inventory plan",
+            "Materials and procurement",
             "External market indicator",
         )
     )
@@ -91,7 +115,15 @@ def main() -> None:
             _render_fred_informed_forecast(*scenario)
     with inventory_tab:
         if scenario is not None:
-            _render_inventory_plan(scenario[0], scenario[2])
+            inventory_scenario = _render_inventory_plan(scenario[0], scenario[2])
+    with procurement_tab:
+        if scenario is not None:
+            _render_procurement_plan(
+                scenario[0],
+                scenario[2],
+                inventory_scenario[0],
+                inventory_scenario[1],
+            )
     with external_tab:
         _render_external_indicator()
 
@@ -481,7 +513,7 @@ def _render_fred_informed_forecast(
 def _render_inventory_plan(
     fred_records: list[ProcessedObservation],
     assumptions: DemandAssumptions,
-) -> None:
+) -> tuple[str, InventoryPolicy]:
     """Turn one FRED-informed forecast into net production requirements."""
 
     st.header("Inventory and net production requirements")
@@ -627,8 +659,262 @@ def _render_inventory_plan(
         )
     st.info(
         "The percentage policy is a teaching baseline, not a statistical "
-        "safety-stock recommendation. Service levels, forecast variability, and "
-        "lead-time variability are reserved for a later approved enhancement."
+        "safety-stock recommendation. The Materials and procurement tab compares "
+        "it with a statistical method after supplier variability is introduced."
+    )
+    return origin, policy
+
+
+def _render_procurement_plan(
+    fred_records: list[ProcessedObservation],
+    assumptions: DemandAssumptions,
+    forecast_origin: str,
+    finished_goods_policy: InventoryPolicy,
+) -> None:
+    """Render BOM, material purchasing, and supplier-risk calculations."""
+
+    st.header("Materials, procurement, and supplier uncertainty")
+    st.write(
+        "The selected finished-goods production plan is exploded through the BOM, "
+        "netted against raw-material inventory and open orders, and offset by each "
+        "supplier's lead time."
+    )
+    st.caption(
+        f"This view follows the Inventory plan tab's {forecast_origin} origin and "
+        "finished-goods assumptions. BOM scrap is zero. Purchase recommendations "
+        "are not automatically issued orders."
+    )
+
+    with st.expander("View the approved bill of materials"):
+        st.dataframe(
+            [
+                {
+                    "product_sku": product_sku,
+                    "component_sku": component_sku,
+                    "component": COMPONENTS[component_sku].name,
+                    "quantity_per_product": quantity,
+                    "unit": COMPONENTS[component_sku].unit,
+                }
+                for product_sku, entries in BOM.items()
+                for component_sku, quantity in entries
+            ],
+            hide_index=True,
+            width="stretch",
+        )
+
+    method = st.selectbox(
+        "Material safety-stock method",
+        SAFETY_STOCK_METHODS,
+        index=SAFETY_STOCK_METHODS.index("percentage"),
+        format_func=lambda value: {
+            "none": "None",
+            "percentage": "Percentage of following-month requirement",
+            "statistical": "Statistical demand and lead-time variability",
+        }[value],
+    )
+    percentage = st.slider(
+        "Material safety stock (% of following-month requirement)",
+        min_value=0,
+        max_value=100,
+        value=25,
+        step=5,
+    )
+    service_level = st.selectbox(
+        "Material service level",
+        tuple(SERVICE_LEVEL_Z),
+        index=1,
+        format_func=lambda value: f"{value:g}% (z = {SERVICE_LEVEL_Z[value]:.3f})",
+    )
+    receipt_treatment = st.selectbox(
+        "Scheduled-receipt treatment",
+        RECEIPT_TREATMENTS,
+        format_func=lambda value: {
+            "full": "Use full scheduled quantity",
+            "risk_adjusted": "Adjust by supplier OTIF rate",
+        }[value],
+    )
+
+    st.subheader("Starting raw-material inventory")
+    starting_inventory: dict[str, int] = {}
+    material_columns = st.columns(3)
+    for index, (component_sku, component) in enumerate(COMPONENTS.items()):
+        with material_columns[index % 3]:
+            starting_inventory[component_sku] = int(
+                st.number_input(
+                    f"Starting material — {component_sku}",
+                    min_value=0,
+                    value=DEFAULT_MATERIAL_INVENTORY[component_sku],
+                    step=50,
+                    help=f"{component.name}, measured in {component.unit}.",
+                )
+            )
+
+    inputs = prepare_procurement_inputs(
+        fred_records,
+        assumptions,
+        finished_goods_policy,
+        forecast_origin=forecast_origin,
+    )
+    policy = ProcurementPolicy(
+        starting_inventory=starting_inventory,
+        safety_stock_method=method,
+        percentage=float(percentage),
+        service_level=service_level,
+        receipt_treatment=receipt_treatment,
+    )
+    records = build_procurement_plan(
+        inputs.material_requirements,
+        inputs.supplier_performance,
+        inputs.material_error_stats,
+        policy,
+        forecast_origin=forecast_origin,
+    )
+    summary = summarize_procurement_plan(records)
+    actions, past_due, release_now, risk = st.columns(4)
+    actions.metric("Material purchase actions", summary.purchase_action_count)
+    past_due.metric("Past-due releases", summary.past_due_action_count)
+    release_now.metric("Release-now actions", summary.release_now_action_count)
+    risk.metric("Risk-adjusted receipts", summary.receipt_at_risk_count)
+
+    st.subheader("Supplier performance from static delivery history")
+    st.dataframe(
+        [
+            {
+                "component_sku": item.component_sku,
+                "supplier": item.supplier_name,
+                "deliveries": item.delivery_count,
+                "average_actual_lead_months": item.average_actual_lead_months,
+                "lead_time_standard_deviation": item.lead_time_standard_deviation,
+                "on_time_rate": item.on_time_rate,
+                "fill_rate": item.fill_rate,
+                "otif_rate": item.otif_rate,
+            }
+            for item in inputs.supplier_performance
+        ],
+        hide_index=True,
+        width="stretch",
+        column_config={
+            "component_sku": "Component SKU",
+            "supplier": "Supplier",
+            "deliveries": "Deliveries",
+            "average_actual_lead_months": st.column_config.NumberColumn(
+                "Average actual lead (months)", format="%.2f"
+            ),
+            "lead_time_standard_deviation": st.column_config.NumberColumn(
+                "Lead-time SD", format="%.2f"
+            ),
+            "on_time_rate": st.column_config.NumberColumn(
+                "On-time rate", format="percent"
+            ),
+            "fill_rate": st.column_config.NumberColumn(
+                "Fill rate", format="percent"
+            ),
+            "otif_rate": st.column_config.NumberColumn(
+                "OTIF rate", format="percent"
+            ),
+        },
+    )
+
+    st.subheader("Material safety-stock comparison")
+    comparisons = compare_safety_stock(
+        inputs.material_requirements,
+        inputs.material_error_stats,
+        inputs.supplier_performance,
+        percentage=float(percentage),
+        service_level=service_level,
+    )
+    st.dataframe(
+        [
+            {
+                "component_sku": item.component_sku,
+                "component_name": item.component_name,
+                "average_monthly_requirement": item.average_monthly_requirement,
+                "forecast_error_standard_deviation": (
+                    item.forecast_error_standard_deviation
+                ),
+                "average_actual_lead_months": item.average_actual_lead_months,
+                "lead_time_standard_deviation": (
+                    item.lead_time_standard_deviation
+                ),
+                "none_target_units": item.none_target_units,
+                "percentage_target_units": item.percentage_target_units,
+                "statistical_target_units": item.statistical_target_units,
+            }
+            for item in comparisons
+        ],
+        hide_index=True,
+        width="stretch",
+        column_config={
+            "component_sku": "Component SKU",
+            "component_name": "Component",
+            "average_monthly_requirement": st.column_config.NumberColumn(
+                "Average monthly requirement", format="%.1f"
+            ),
+            "forecast_error_standard_deviation": st.column_config.NumberColumn(
+                "Forecast-error SD", format="%.1f"
+            ),
+            "average_actual_lead_months": st.column_config.NumberColumn(
+                "Average lead", format="%.2f"
+            ),
+            "lead_time_standard_deviation": st.column_config.NumberColumn(
+                "Lead-time SD", format="%.2f"
+            ),
+            "none_target_units": "No safety stock",
+            "percentage_target_units": "Percentage target",
+            "statistical_target_units": "Statistical target",
+        },
+    )
+
+    component_sku = st.selectbox(
+        "Procurement component",
+        tuple(COMPONENTS),
+        format_func=lambda value: f"{value} - {COMPONENTS[value].name}",
+    )
+    selected = filter_procurement_plan(records, component_sku=component_sku)
+    st.subheader("Material requirements and purchase recommendations")
+    st.line_chart(
+        [
+            {
+                "period": row["period"],
+                "gross_requirement": row["gross_requirement_units"],
+                "net_purchase_receipt": row["net_purchase_receipt_units"],
+                "projected_ending_inventory": row[
+                    "projected_ending_inventory_units"
+                ],
+            }
+            for row in selected
+        ],
+        x="period",
+        y=(
+            "gross_requirement",
+            "net_purchase_receipt",
+            "projected_ending_inventory",
+        ),
+    )
+    st.dataframe(selected, hide_index=True, width="stretch")
+
+    example = selected[0]
+    with st.expander("Show the first material purchase calculation"):
+        st.code(
+            "net purchase receipt = max(0, gross requirement + safety target "
+            "- inventory position)",
+            language="text",
+        )
+        st.write(
+            f"For {example['period']}: max(0, "
+            f"{example['gross_requirement_units']} + "
+            f"{example['safety_stock_target_units']} - "
+            f"{example['inventory_position_units']}) = "
+            f"{example['net_purchase_receipt_units']} "
+            f"{example['unit']}. Release recommendation: "
+            f"{example['recommended_order_release_period']} "
+            f"({example['release_status']})."
+        )
+    st.warning(
+        "The statistical method uses a small fictional history and a normal-model "
+        "approximation. Risk-adjusted receipts are expected availability, not a "
+        "guarantee. This plan does not automatically issue orders or reschedule "
+        "production around shortages."
     )
 
 

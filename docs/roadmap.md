@@ -161,6 +161,10 @@ baseline rather than a statistical safety-stock recommendation.
 
 ## Milestone 7: Bills of materials and procurement
 
+**Status:** Implemented
+
+**Specification:** `docs/specs/milestone-07-materials-and-procurement.md`
+
 **Learning focus:** Material requirements and supplier constraints
 
 Potential outcomes:
@@ -175,6 +179,15 @@ Potential outcomes:
 
 Decision gate: approve the BOM structure, units of measure, treatment of open
 orders, and inputs required for any statistical safety-stock comparison.
+
+The implemented 7A model translates net production through a six-component
+BOM, nets adjustable raw-material inventory and fixed open-order receipts, and
+offsets purchase recommendations by fictional supplier lead time. Milestone 7B
+uses 36 packaged fictional deliveries to calculate on-time rate, fill rate,
+OTIF, average actual lead time, and lead-time variability. Learners can compare
+no material safety stock, following-month percentage coverage, and a combined
+demand-error/lead-time statistical method, and can treat scheduled receipts at
+full quantity or adjust them by supplier OTIF.
 
 ## Milestone 8: Capacity and production planning
 

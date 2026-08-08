@@ -31,6 +31,10 @@ orders, company demand, or a forecast.
 - Evaluate 1-12 month FRED-informed demand forecasts with rolling origins.
 - Convert a selected forecast into finished-goods inventory and net production
   requirements with an adjustable safety-stock policy.
+- Explode production through a fictional BOM and calculate time-phased material
+  purchase recommendations.
+- Compare supplier reliability, receipt-risk, and material safety-stock methods
+  using a fixed fictional delivery history.
 - Write optional operational logs to the console and detailed logs to a file.
 - Explore the same validated records in a local Streamlit dashboard.
 - Test success and failure behavior with fixtures and mocks instead of live API
@@ -123,6 +127,7 @@ uv run planning-lab demand --help
 uv run planning-lab forecast --help
 uv run planning-lab fred-forecast --help
 uv run planning-lab inventory-plan --help
+uv run planning-lab procurement-plan --help
 ```
 
 ### Processed-data inspection
@@ -279,6 +284,38 @@ This is a requirement calculation, not yet a capacity-feasible production
 schedule. The policy, formulas, manual example, and limitations are in
 [`docs/specs/milestone-06-inventory-planning.md`](docs/specs/milestone-06-inventory-planning.md).
 
+### Materials, procurement, and supplier uncertainty
+
+Build the default BOM and purchasing plan:
+
+```shell
+uv run planning-lab procurement-plan --origin 2024-12 --limit 12
+```
+
+Use statistical material safety stock, adjust open receipts by supplier OTIF,
+and inspect glass:
+
+```shell
+uv run planning-lab procurement-plan \
+  --origin 2024-12 \
+  --safety-method statistical \
+  --service-level 95 \
+  --receipt-treatment risk_adjusted \
+  --component GLASS-SQFT
+```
+
+The plan translates finished-goods production through the approved BOM,
+combines shared component demand, nets starting raw-material inventory and
+scheduled receipts, and recommends purchase receipts and order-release months.
+The supplier view calculates on-time rate, fill rate, OTIF, average actual lead
+time, and lead-time variability from 36 fixed fictional deliveries.
+
+Material safety stock can be zero, a percentage of the following month's
+requirements, or a combined statistical estimate based on material forecast
+error and supplier lead-time variability. These are teaching comparisons, not
+optimized purchasing policies. See
+[`docs/specs/milestone-07-materials-and-procurement.md`](docs/specs/milestone-07-materials-and-procurement.md).
+
 ### Logging
 
 Show operational `INFO` messages in the terminal:
@@ -335,10 +372,14 @@ the dashboard:
    finished-goods inventory and the safety-stock percentage.
 7. Inspect monthly forecast demand, net production requirements, projected
    ending inventory, and the displayed calculation.
-8. Open **External market indicator** to work with live FRED data separately.
-9. Configure `FRED_API_KEY`, choose a first observation date, and select
+8. Open **Materials and procurement** to inspect the BOM, raw-material plan,
+   suppliers, purchase timing, and safety-stock comparison.
+9. Switch between full and OTIF-adjusted scheduled receipts to see how supplier
+   reliability changes purchase recommendations.
+10. Open **External market indicator** to work with live FRED data separately.
+11. Configure `FRED_API_KEY`, choose a first observation date, and select
    **Load validated FRED data** for the external view.
-10. Review its descriptive measures, trend chart, trusted rows, and downloads.
+12. Review its descriptive measures, trend chart, trusted rows, and downloads.
 
 The dashboard calls the same FRED-snapshot validation and demand-calculation
 logic used by the CLI. Sliders adjust company market share, customer
@@ -388,6 +429,8 @@ key and do not contact the live FRED service. The suite covers:
 - baseline forecast calculations, filtering, MAE, bias, and manual examples;
 - FRED-driver forecast horizons, lineage, rolling-origin counts, MAE, and bias;
 - inventory roll-forward, safety targets, net production, and manual examples;
+- BOM explosion, raw-material netting, supplier metrics, receipt risk, and
+  statistical safety stock;
 - console and file logging without secret disclosure;
 - a no-network CLI smoke check; and
 - a no-network Streamlit startup check.
@@ -410,6 +453,9 @@ file, chart, and table.
 |   |-- forecasting.py         # baseline forecasts and performance measures
 |   |-- driver_forecasting.py  # rolling-origin FRED-informed forecasts
 |   |-- inventory.py           # inventory and net production requirements
+|   |-- materials.py           # component catalog, BOM, and supplier history
+|   |-- procurement.py         # material safety stock and purchasing logic
+|   |-- planning_workflow.py   # forecast-to-procurement coordination
 |   |-- inspection.py          # processed-data quality and descriptions
 |   |-- logging_config.py      # console and file logging setup
 |   |-- metadata.py            # safe project setup information
@@ -418,7 +464,8 @@ file, chart, and table.
 |   |-- transform.py           # trusted project-record transformation
 |   |-- workflow.py            # logic shared by CLI and dashboard
 |   `-- resources/
-|       `-- fred_permit_2000_2025.csv # fixed FRED source snapshot
+|       |-- fred_permit_2000_2025.csv # fixed FRED source snapshot
+|       `-- supplier_delivery_history.csv # fixed fictional supplier history
 |-- tests/
 |   |-- fixtures/              # stable valid and invalid FRED examples
 |   `-- test_*.py              # unit, boundary, workflow, and smoke tests
