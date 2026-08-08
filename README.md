@@ -112,6 +112,12 @@ FRED_API_KEY=your_key_here
 The `.env` file is ignored by Git. Do not paste an API key into source code,
 tests, screenshots, issue comments, or log messages.
 
+Raw FRED responses are deliberately private local evidence. They are written
+to the ignored `data/raw/` directory only when someone runs a live fetch with
+their own `FRED_API_KEY`; they are not committed, packaged, or attached to a
+release. The committed processed snapshot lets the dashboard and planning
+commands remain reproducible without distributing private local fetch files.
+
 Check the setup without contacting FRED or revealing the key:
 
 ```shell
@@ -508,6 +514,43 @@ key and do not contact the live FRED service. The suite covers:
 For a final end-to-end check, use a real key to run one CLI fetch and one
 dashboard request, then inspect the raw JSON, processed CSV, console output, log
 file, chart, and table.
+
+GitHub Actions runs the same offline test suite on every push and pull request.
+The workflow installs the locked environment with `uv sync --frozen` and does
+not receive a FRED API key.
+
+## Package and release evidence
+
+PyPI publication is optional for this project. The required package evidence
+is the wheel and source archive attached to the exact GitHub Release for the
+submitted version.
+
+Build both archives from a clean checkout at the release commit:
+
+```shell
+uv build --no-sources
+```
+
+For version `0.11.0`, the command creates:
+
+```text
+dist/supply_chain_planning_lab-0.11.0-py3-none-any.whl
+dist/supply_chain_planning_lab-0.11.0.tar.gz
+```
+
+The release artifacts contain the installable `planning-lab` command and the
+committed CSV resources used by the reproducible dashboard. Generated raw FRED
+responses are intentionally excluded. To verify the wheel independently,
+install it into a temporary environment and run the packaged command:
+
+```shell
+uv venv .package-check
+uv pip install --python .package-check dist/supply_chain_planning_lab-0.11.0-py3-none-any.whl
+uv run --no-project --python .package-check planning-lab --help
+```
+
+Remove `.package-check` after verification. Normal contributors should use the
+Quick start workflow instead of installing a release artifact.
 
 ## Reproducible report
 
