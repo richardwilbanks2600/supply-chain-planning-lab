@@ -58,10 +58,19 @@ def test_dashboard_starts_without_contacting_fred(monkeypatch) -> None:
     assert app.title[0].value == "Supply Chain Planning Lab"
     assert app.header[0].value == "FRED-driven internal demand"
     assert app.header[1].value == "Baseline forecast comparison"
+    assert app.header[2].value == "FRED-informed demand forecast"
     assert any(metric.label == "Internal demand units" for metric in app.metric)
     assert any(metric.label == "Mean absolute error" for metric in app.metric)
     assert any(slider.label == "Company market share (%)" for slider in app.slider)
     assert any(selectbox.label == "Forecast method" for selectbox in app.selectbox)
+    assert any(
+        selectbox.label == "FRED-informed forecast product"
+        for selectbox in app.selectbox
+    )
+    assert any(
+        slider.label == "FRED-informed demand horizon (months)"
+        for slider in app.slider
+    )
 
 
 def test_market_share_slider_recalculates_internal_demand(monkeypatch) -> None:

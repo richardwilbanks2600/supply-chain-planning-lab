@@ -27,6 +27,8 @@ orders, company demand, or a forecast.
 - Filter internal demand by month, customer, and product without an API key.
 - Compare previous-month, seasonal-naive, and trailing-average demand forecasts.
 - Evaluate forecast magnitude and direction with MAE and bias.
+- Separate known lagged FRED drivers from future drivers that require forecasts.
+- Evaluate 1-12 month FRED-informed demand forecasts with rolling origins.
 - Write optional operational logs to the console and detailed logs to a file.
 - Explore the same validated records in a local Streamlit dashboard.
 - Test success and failure behavior with fixtures and mocks instead of live API
@@ -117,6 +119,7 @@ uv run planning-lab fetch --help
 uv run planning-lab inspect --help
 uv run planning-lab demand --help
 uv run planning-lab forecast --help
+uv run planning-lab fred-forecast --help
 ```
 
 ### Processed-data inspection
@@ -212,6 +215,36 @@ command reports mean absolute error (MAE) and bias using
 The exact methods, manual example, error definitions, and limitations are in
 [`docs/specs/milestone-04-baseline-forecasting.md`](docs/specs/milestone-04-baseline-forecasting.md).
 
+### FRED-informed forecast evaluation
+
+Evaluate the approved 1-12 month rolling-origin forecast without an API key or
+network call:
+
+```shell
+uv run planning-lab fred-forecast --limit 12
+```
+
+Inspect one product and demand horizon:
+
+```shell
+uv run planning-lab fred-forecast \
+  --product WIN-2436 \
+  --horizon 4 \
+  --limit 12
+```
+
+Because permits lead internal demand by three months, demand horizons 1-3 use
+FRED values already known at the forecast origin. Demand horizons 4-12 require
+unknown future permit values; the approved baseline carries the origin's most
+recent FRED value forward. The command reports MAE and bias by driver status
+and horizon, then preserves forecast-origin, driver-period, and product lineage
+in each detail row.
+
+This is a revised-history teaching backtest. It uses one fixed current FRED
+snapshot and does not reconstruct historical FRED vintages or publication
+delays. The full design and manual example are in
+[`docs/specs/milestone-05-fred-informed-forecasting.md`](docs/specs/milestone-05-fred-informed-forecasting.md).
+
 ### Logging
 
 Show operational `INFO` messages in the terminal:
@@ -260,10 +293,14 @@ the dashboard:
    the recalculated monthly totals and lineage rows.
 3. Open **Forecast baselines** to compare all methods and explore actual versus
    forecast demand for each product.
-4. Open **External market indicator** to work with live FRED data separately.
-5. Configure `FRED_API_KEY`, choose a first observation date, and select
+4. Open **FRED-informed forecast** to compare known lagged drivers with horizons
+   that require a FRED forecast.
+5. Select a product and 1-12 month horizon to inspect its rolling-origin chart
+   and source lineage.
+6. Open **External market indicator** to work with live FRED data separately.
+7. Configure `FRED_API_KEY`, choose a first observation date, and select
    **Load validated FRED data** for the external view.
-6. Review its descriptive measures, trend chart, trusted rows, and downloads.
+8. Review its descriptive measures, trend chart, trusted rows, and downloads.
 
 The dashboard calls the same FRED-snapshot validation and demand-calculation
 logic used by the CLI. Sliders adjust company market share, customer
@@ -311,6 +348,7 @@ key and do not contact the live FRED service. The suite covers:
 - processed-CSV validation, quality detection, filtering, and descriptive measures;
 - FRED snapshot completeness, demand lineage, allocation, filtering, and summaries;
 - baseline forecast calculations, filtering, MAE, bias, and manual examples;
+- FRED-driver forecast horizons, lineage, rolling-origin counts, MAE, and bias;
 - console and file logging without secret disclosure;
 - a no-network CLI smoke check; and
 - a no-network Streamlit startup check.
@@ -331,6 +369,7 @@ file, chart, and table.
 |   |-- dashboard.py           # local Streamlit interface
 |   |-- demand.py              # FRED-to-demand assumptions and calculations
 |   |-- forecasting.py         # baseline forecasts and performance measures
+|   |-- driver_forecasting.py  # rolling-origin FRED-informed forecasts
 |   |-- inspection.py          # processed-data quality and descriptions
 |   |-- logging_config.py      # console and file logging setup
 |   |-- metadata.py            # safe project setup information

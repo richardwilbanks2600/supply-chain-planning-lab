@@ -17,8 +17,10 @@ from .demand import (
     DEMAND_FIELDS,
     PRODUCTS,
     DemandDataError,
+    default_assumptions,
     filter_demand,
     load_default_demand,
+    load_fred_snapshot,
     summarize_demand,
 )
 from .inspection import (
@@ -37,6 +39,15 @@ from .forecasting import (
     compare_baselines,
     filter_forecasts,
     summarize_forecasts,
+)
+from .driver_forecasting import (
+    DRIVER_METHOD_LABEL,
+    MAX_FORECAST_HORIZON,
+    DriverForecastError,
+    calculate_driver_forecasts,
+    filter_driver_forecasts,
+    summarize_driver_status,
+    summarize_horizons,
 )
 from .logging_config import LoggingSetupError, configure_logging
 from .metadata import project_info
@@ -228,6 +239,32 @@ def build_parser() -> argparse.ArgumentParser:
         help=f"last evaluation month (default: {EVALUATION_END_PERIOD})",
     )
     forecast_parser.add_argument(
+        "--limit",
+        type=positive_integer,
+        default=None,
+        help="maximum detail rows to list (default: all)",
+    )
+
+    fred_forecast_parser = subparsers.add_parser(
+        "fred-forecast",
+        help="Evaluate demand forecasts driven by known and forecasted FRED values.",
+    )
+    fred_forecast_parser.add_argument(
+        "--product",
+        choices=tuple(PRODUCTS),
+        default=None,
+        metavar="SKU",
+        help="product SKU to list (default: all)",
+    )
+    fred_forecast_parser.add_argument(
+        "--horizon",
+        type=positive_integer,
+        choices=range(1, MAX_FORECAST_HORIZON + 1),
+        default=None,
+        metavar="MONTHS",
+        help=f"demand horizon to list (1-{MAX_FORECAST_HORIZON}; default: all)",
+    )
+    fred_forecast_parser.add_argument(
         "--limit",
         type=positive_integer,
         default=None,
@@ -430,6 +467,77 @@ def run_forecast(
     return 0
 
 
+def run_fred_forecast(
+    *,
+    product_sku: str | None,
+    horizon_months: int | None,
+    limit: int | None,
+) -> int:
+    """Evaluate the approved rolling-origin FRED-informed forecast."""
+
+    try:
+        fred_records = load_fred_snapshot()
+        demand_records = load_default_demand()
+        records = calculate_driver_forecasts(
+            fred_records,
+            demand_records,
+            default_assumptions(),
+        )
+        selected = filter_driver_forecasts(
+            records,
+            product_sku=product_sku,
+            horizon_months=horizon_months,
+        )
+    except (OSError, UnicodeError, DemandDataError, DriverForecastError) as exc:
+        logger.error("FRED-informed forecast evaluation failed: %s", exc)
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+
+    known = summarize_driver_status(records, "known")
+    forecasted = summarize_driver_status(records, "forecasted")
+    print("Forecast grain: monthly product demand across all customers")
+    print("Forecast origins: 2019-12 through 2024-12")
+    print(f"Demand horizons: 1 through {MAX_FORECAST_HORIZON} months")
+    print(f"Unknown-driver method: {DRIVER_METHOD_LABEL}")
+    print("Known drivers: demand horizons 1-3 use observed lagged FRED values")
+    print("Forecasted drivers: demand horizons 4-12 use the origin FRED value")
+    print("Error definition: actual - forecast; positive means underforecast")
+    print("Revised-history note: this backtest uses one fixed current FRED snapshot")
+    print("driver_status,forecast_count,mae,bias")
+    for summary in (known, forecasted):
+        print(
+            f"{summary.driver_status},{summary.forecast_count},"
+            f"{_number(summary.mean_absolute_error)},"
+            f"{_signed_number(summary.bias)}"
+        )
+    print("Horizon performance:")
+    print("horizon_months,driver_status,forecast_count,mae,bias")
+    for summary in summarize_horizons(records):
+        print(
+            f"{summary.horizon_months},{summary.driver_status},"
+            f"{summary.forecast_count},"
+            f"{_number(summary.mean_absolute_error)},"
+            f"{_signed_number(summary.bias)}"
+        )
+
+    displayed = selected[:limit] if limit is not None else selected
+    print(f"Selected forecasts: {len(selected)}")
+    print(f"Listed forecasts: {len(displayed)}")
+    print(
+        "forecast_origin,horizon_months,demand_period,driver_period,"
+        "driver_status,product_sku,actual_units,forecast_units,error_units"
+    )
+    for record in displayed:
+        print(
+            f"{record['forecast_origin']},{record['horizon_months']},"
+            f"{record['demand_period']},{record['driver_period']},"
+            f"{record['driver_status']},{record['product_sku']},"
+            f"{record['actual_demand_units']},"
+            f"{record['forecast_demand_units']},{record['error_units']:+d}"
+        )
+    return 0
+
+
 def _period_list(periods: Sequence[str]) -> str:
     """Format detected periods without overwhelming the console."""
 
@@ -504,6 +612,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             product_sku=args.product,
             start_period=args.start_period,
             end_period=args.end_period,
+            limit=args.limit,
+        )
+
+    if args.command == "fred-forecast":
+        logger.info("Evaluating FRED-informed demand forecasts.")
+        return run_fred_forecast(
+            product_sku=args.product,
+            horizon_months=args.horizon,
             limit=args.limit,
         )
 

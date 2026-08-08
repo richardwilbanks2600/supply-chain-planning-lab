@@ -160,6 +160,27 @@ def load_default_demand() -> list[DemandRecord]:
     return generate_demand(load_fred_snapshot(), default_assumptions())
 
 
+def calculate_product_demand(
+    fred_value_saar_thousands: float,
+    assumptions: DemandAssumptions,
+) -> dict[str, int]:
+    """Translate one FRED pace value into whole-unit product demand."""
+
+    if (
+        not math.isfinite(fred_value_saar_thousands)
+        or fred_value_saar_thousands < 0
+    ):
+        raise DemandDataError("FRED pace value must be finite and nonnegative.")
+    monthly_pace = fred_value_saar_thousands * 1_000 / 12
+    addressable_homes = monthly_pace * assumptions.market_share_percent / 100
+    return {
+        product_sku: round(
+            addressable_homes * assumptions.units_per_home[product_sku]
+        )
+        for product_sku in PRODUCTS
+    }
+
+
 def generate_demand(
     fred_records: Sequence[ProcessedObservation],
     assumptions: DemandAssumptions,
@@ -178,14 +199,11 @@ def generate_demand(
         if demand_period > demand_end_period:
             continue
         monthly_pace = fred_record["value"] * 1_000 / 12
-        addressable_homes = (
-            monthly_pace * assumptions.market_share_percent / 100
-        )
+        product_totals = calculate_product_demand(fred_record["value"], assumptions)
         for product_sku, product_name in PRODUCTS.items():
             units_per_home = assumptions.units_per_home[product_sku]
-            product_demand = round(addressable_homes * units_per_home)
             customer_units = _allocate_units(
-                product_demand, assumptions.customer_allocations
+                product_totals[product_sku], assumptions.customer_allocations
             )
             for customer, customer_type in CUSTOMERS.items():
                 records.append(

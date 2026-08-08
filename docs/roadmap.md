@@ -106,6 +106,10 @@ signed mean error (bias).
 
 ## Milestone 5: FRED-informed forecasting
 
+**Status:** Implemented
+
+**Specification:** `docs/specs/milestone-05-fred-informed-forecasting.md`
+
 **Learning focus:** Known external drivers versus genuinely unknown future values
 
 Potential outcomes:
@@ -121,6 +125,14 @@ Potential outcomes:
 
 Decision gate: approve the FRED forecast horizon, information available at
 each forecast origin, baseline method, and treatment of revised observations.
+
+The approved model evaluates 1-12 month product-demand horizons from monthly
+forecast origins spanning December 2019 through December 2024. Because FRED
+permits lead internal demand by three months, horizons 1-3 use known lagged
+permit observations and horizons 4-12 use a previous-month-naive permit
+forecast. MAE and signed bias are reported by driver status and horizon. The
+evaluation deliberately uses the fixed current FRED snapshot; it does not
+simulate publication delays or reconstruct historical vintages.
 
 ## Milestone 6: Inventory and net production requirements
 

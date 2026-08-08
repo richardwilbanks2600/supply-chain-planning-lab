@@ -30,6 +30,14 @@ from supply_chain_planning_lab.forecasting import (
     filter_forecasts,
     summarize_forecasts,
 )
+from supply_chain_planning_lab.driver_forecasting import (
+    DRIVER_METHOD_LABEL,
+    MAX_FORECAST_HORIZON,
+    calculate_driver_forecasts,
+    filter_driver_forecasts,
+    summarize_driver_status,
+    summarize_horizons,
+)
 from supply_chain_planning_lab.inspection import summarize_records
 from supply_chain_planning_lab.logging_config import configure_logging
 from supply_chain_planning_lab.output import processed_csv_text
@@ -55,19 +63,29 @@ def main() -> None:
         "Translate a fixed FRED market history into an interactive fictional "
         "customer-demand scenario with visible assumptions."
     )
-    demand_tab, forecast_tab, external_tab = st.tabs(
-        ("Internal demand", "Forecast baselines", "External market indicator")
+    demand_tab, forecast_tab, fred_forecast_tab, external_tab = st.tabs(
+        (
+            "Internal demand",
+            "Forecast baselines",
+            "FRED-informed forecast",
+            "External market indicator",
+        )
     )
     with demand_tab:
-        demand_records = _render_internal_demand()
+        scenario = _render_internal_demand()
     with forecast_tab:
-        if demand_records is not None:
-            _render_forecast_baselines(demand_records)
+        if scenario is not None:
+            _render_forecast_baselines(scenario[1])
+    with fred_forecast_tab:
+        if scenario is not None:
+            _render_fred_informed_forecast(*scenario)
     with external_tab:
         _render_external_indicator()
 
 
-def _render_internal_demand() -> list[DemandRecord] | None:
+def _render_internal_demand() -> tuple[
+    list[ProcessedObservation], list[DemandRecord], DemandAssumptions
+] | None:
     """Render a deterministic scenario from the fixed FRED snapshot."""
 
     st.header("FRED-driven internal demand")
@@ -207,7 +225,7 @@ def _render_internal_demand() -> list[DemandRecord] | None:
             "unit": "Unit",
         },
     )
-    return records
+    return fred_records, records, assumptions
 
 
 def _render_forecast_baselines(demand_records: list[DemandRecord]) -> None:
@@ -327,6 +345,124 @@ def _render_forecast_baselines(demand_records: list[DemandRecord]) -> None:
             "will compare other window lengths, weighted averages, and exponential "
             "averages."
         )
+
+
+def _render_fred_informed_forecast(
+    fred_records: list[ProcessedObservation],
+    demand_records: list[DemandRecord],
+    assumptions: DemandAssumptions,
+) -> None:
+    """Show how known and forecasted FRED drivers become demand forecasts."""
+
+    st.header("FRED-informed demand forecast")
+    st.write(
+        "This rolling-origin backtest starts with the FRED information available "
+        "at each origin, then applies the same lag and scenario assumptions used "
+        "to calculate internal demand."
+    )
+    st.caption(
+        "Demand horizons 1-3 use already-observed lagged permit values. Horizons "
+        f"4-{MAX_FORECAST_HORIZON} forecast the unknown permit driver with the "
+        f"{DRIVER_METHOD_LABEL.lower()}."
+    )
+    records = calculate_driver_forecasts(
+        fred_records,
+        demand_records,
+        assumptions,
+    )
+    known = summarize_driver_status(records, "known")
+    forecasted = summarize_driver_status(records, "forecasted")
+
+    known_count, known_mae, forecasted_count, forecasted_mae = st.columns(4)
+    known_count.metric("Known-driver forecasts", known.forecast_count)
+    known_mae.metric(
+        "Known-driver MAE",
+        f"{known.mean_absolute_error:,.1f}",
+        help=(
+            "This is zero by construction because the demand driver is already "
+            "known; it demonstrates calculation mechanics, not predictive skill."
+        ),
+    )
+    forecasted_count.metric(
+        "Forecasted-driver forecasts", forecasted.forecast_count
+    )
+    forecasted_mae.metric(
+        "Forecasted-driver MAE",
+        f"{forecasted.mean_absolute_error:,.1f}",
+        help="Mean absolute product-demand error where the FRED driver was unknown.",
+    )
+
+    st.subheader("Performance by demand horizon")
+    st.dataframe(
+        [
+            {
+                "horizon_months": summary.horizon_months,
+                "driver_status": summary.driver_status,
+                "forecast_count": summary.forecast_count,
+                "mae": summary.mean_absolute_error,
+                "bias": summary.bias,
+            }
+            for summary in summarize_horizons(records)
+        ],
+        hide_index=True,
+        width="stretch",
+        column_config={
+            "horizon_months": "Demand horizon (months)",
+            "driver_status": "FRED driver",
+            "forecast_count": "Forecasts",
+            "mae": st.column_config.NumberColumn("MAE", format="%.1f"),
+            "bias": st.column_config.NumberColumn("Bias", format="%+.1f"),
+        },
+    )
+
+    product_sku = st.selectbox(
+        "FRED-informed forecast product",
+        tuple(PRODUCTS),
+        format_func=lambda value: f"{value} - {PRODUCTS[value]}",
+    )
+    horizon = st.slider(
+        "FRED-informed demand horizon (months)",
+        min_value=1,
+        max_value=MAX_FORECAST_HORIZON,
+        value=4,
+        step=1,
+    )
+    selected = filter_driver_forecasts(
+        records,
+        product_sku=product_sku,
+        horizon_months=horizon,
+    )
+    selected_summary = summarize_driver_status(
+        selected, selected[0]["driver_status"]
+    )
+    status, mae, bias = st.columns(3)
+    status.metric("Driver status", selected[0]["driver_status"].title())
+    mae.metric(
+        "Selected horizon MAE",
+        f"{selected_summary.mean_absolute_error:,.1f}",
+    )
+    bias.metric("Selected horizon bias", f"{selected_summary.bias:+,.1f}")
+
+    st.subheader("Actual versus FRED-informed forecast")
+    st.line_chart(
+        [
+            {
+                "demand_period": record["demand_period"],
+                "actual_units": record["actual_demand_units"],
+                "forecast_units": record["forecast_demand_units"],
+            }
+            for record in selected
+        ],
+        x="demand_period",
+        y=("actual_units", "forecast_units"),
+    )
+    st.dataframe(selected, hide_index=True, width="stretch")
+
+    st.warning(
+        "Teaching limitation: the evaluation uses one fixed, currently revised "
+        "FRED history. It does not reproduce the vintages or publication delay "
+        "that would have existed at each historical forecast origin."
+    )
 
 
 def _render_external_indicator() -> None:
