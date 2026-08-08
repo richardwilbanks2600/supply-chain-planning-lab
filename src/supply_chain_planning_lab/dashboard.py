@@ -35,8 +35,17 @@ from supply_chain_planning_lab.driver_forecasting import (
     MAX_FORECAST_HORIZON,
     calculate_driver_forecasts,
     filter_driver_forecasts,
+    forecast_origins,
     summarize_driver_status,
     summarize_horizons,
+)
+from supply_chain_planning_lab.inventory import (
+    DEFAULT_SAFETY_STOCK_PERCENT,
+    DEFAULT_STARTING_INVENTORY,
+    InventoryPolicy,
+    build_inventory_plan,
+    filter_inventory_plan,
+    summarize_inventory_plan,
 )
 from supply_chain_planning_lab.inspection import summarize_records
 from supply_chain_planning_lab.logging_config import configure_logging
@@ -63,11 +72,12 @@ def main() -> None:
         "Translate a fixed FRED market history into an interactive fictional "
         "customer-demand scenario with visible assumptions."
     )
-    demand_tab, forecast_tab, fred_forecast_tab, external_tab = st.tabs(
+    demand_tab, forecast_tab, fred_forecast_tab, inventory_tab, external_tab = st.tabs(
         (
             "Internal demand",
             "Forecast baselines",
             "FRED-informed forecast",
+            "Inventory plan",
             "External market indicator",
         )
     )
@@ -79,6 +89,9 @@ def main() -> None:
     with fred_forecast_tab:
         if scenario is not None:
             _render_fred_informed_forecast(*scenario)
+    with inventory_tab:
+        if scenario is not None:
+            _render_inventory_plan(scenario[0], scenario[2])
     with external_tab:
         _render_external_indicator()
 
@@ -462,6 +475,160 @@ def _render_fred_informed_forecast(
         "Teaching limitation: the evaluation uses one fixed, currently revised "
         "FRED history. It does not reproduce the vintages or publication delay "
         "that would have existed at each historical forecast origin."
+    )
+
+
+def _render_inventory_plan(
+    fred_records: list[ProcessedObservation],
+    assumptions: DemandAssumptions,
+) -> None:
+    """Turn one FRED-informed forecast into net production requirements."""
+
+    st.header("Inventory and net production requirements")
+    st.write(
+        "This plan nets the FRED-informed product forecast against finished-goods "
+        "inventory, then produces enough to meet demand and the safety-stock target."
+    )
+    st.caption(
+        "Scheduled receipts are zero and production is assumed to become available "
+        "in its planned month. These requirements are not yet a capacity-feasible "
+        "production schedule."
+    )
+
+    origin = st.selectbox(
+        "Inventory plan forecast origin",
+        forecast_origins(),
+        index=len(forecast_origins()) - 1,
+    )
+    safety_stock_percent = st.slider(
+        "Safety stock (% of following-month forecast)",
+        min_value=0,
+        max_value=100,
+        value=int(DEFAULT_SAFETY_STOCK_PERCENT),
+        step=5,
+    )
+    st.subheader("Starting finished-goods inventory")
+    starting_inventory: dict[str, int] = {}
+    inventory_columns = st.columns(3)
+    for column, (product_sku, product_name) in zip(
+        inventory_columns, PRODUCTS.items()
+    ):
+        with column:
+            starting_inventory[product_sku] = int(
+                st.number_input(
+                    f"Starting inventory — {product_sku}",
+                    min_value=0,
+                    value=DEFAULT_STARTING_INVENTORY[product_sku],
+                    step=10,
+                    help=product_name,
+                )
+            )
+
+    extended_demand = generate_demand(
+        fred_records,
+        assumptions,
+        demand_end_period="2026-01",
+    )
+    forecasts = calculate_driver_forecasts(
+        fred_records,
+        extended_demand,
+        assumptions,
+        origin_start=origin,
+        origin_end=origin,
+        max_horizon=13,
+    )
+    policy = InventoryPolicy(
+        starting_inventory=starting_inventory,
+        safety_stock_percent=float(safety_stock_percent),
+    )
+    records = build_inventory_plan(
+        forecasts,
+        policy,
+        forecast_origin=origin,
+    )
+    summary = summarize_inventory_plan(records)
+    demand, production, ending = st.columns(3)
+    demand.metric("12-month forecast demand", f"{summary.forecast_demand_units:,}")
+    production.metric(
+        "Net production requirement",
+        f"{summary.net_production_requirement_units:,}",
+    )
+    ending.metric(
+        "Final projected inventory",
+        f"{summary.final_projected_inventory_units:,}",
+    )
+
+    product_sku = st.selectbox(
+        "Inventory product",
+        tuple(PRODUCTS),
+        format_func=lambda value: f"{value} - {PRODUCTS[value]}",
+    )
+    selected = filter_inventory_plan(records, product_sku=product_sku)
+    st.subheader("Monthly requirements and projected inventory")
+    st.line_chart(
+        [
+            {
+                "period": record["period"],
+                "forecast_demand": record["forecast_demand_units"],
+                "net_production": record[
+                    "net_production_requirement_units"
+                ],
+                "projected_ending_inventory": record[
+                    "projected_ending_inventory_units"
+                ],
+            }
+            for record in selected
+        ],
+        x="period",
+        y=(
+            "forecast_demand",
+            "net_production",
+            "projected_ending_inventory",
+        ),
+    )
+    st.dataframe(
+        selected,
+        hide_index=True,
+        width="stretch",
+        column_config={
+            "forecast_origin": "Forecast origin",
+            "horizon_months": "Horizon",
+            "period": "Plan month",
+            "product_sku": "Product SKU",
+            "product_name": "Product",
+            "forecast_demand_units": "Forecast demand",
+            "beginning_inventory_units": "Beginning inventory",
+            "scheduled_receipts_units": "Scheduled receipts",
+            "inventory_position_units": "Inventory position",
+            "safety_stock_basis_period": "Safety basis month",
+            "safety_stock_basis_units": "Following-month forecast",
+            "safety_stock_percent": st.column_config.NumberColumn(
+                "Safety stock (%)", format="%.1f"
+            ),
+            "safety_stock_target_units": "Safety-stock target",
+            "net_production_requirement_units": "Net production requirement",
+            "projected_ending_inventory_units": "Projected ending inventory",
+        },
+    )
+
+    example = selected[0]
+    with st.expander("Show the first month's calculation"):
+        st.code(
+            "net production = max(0, forecast demand + safety target "
+            "- inventory position)",
+            language="text",
+        )
+        st.write(
+            f"For {example['period']}: max(0, "
+            f"{example['forecast_demand_units']} + "
+            f"{example['safety_stock_target_units']} - "
+            f"{example['inventory_position_units']}) = "
+            f"{example['net_production_requirement_units']} units."
+        )
+    st.info(
+        "The percentage policy is a teaching baseline, not a statistical "
+        "safety-stock recommendation. Service levels, forecast variability, and "
+        "lead-time variability are reserved for a later approved enhancement."
     )
 
 

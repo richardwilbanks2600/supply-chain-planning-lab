@@ -136,6 +136,10 @@ simulate publication delays or reconstruct historical vintages.
 
 ## Milestone 6: Inventory and net production requirements
 
+**Status:** Implemented
+
+**Specification:** `docs/specs/milestone-06-inventory-planning.md`
+
 **Learning focus:** Turning demand into a production requirement
 
 Potential outcomes:
@@ -148,6 +152,13 @@ Potential outcomes:
 
 Decision gate: define the inventory-position and safety-stock rules before implementation.
 
+The approved first policy nets a selected 12-month FRED-informed product
+forecast against adjustable starting finished-goods inventory. Safety stock is
+an adjustable percentage of the following month's forecast, defaulting to 25%.
+Scheduled receipts are zero, production is available in its planned month, and
+projected ending inventory carries forward. This is a transparent teaching
+baseline rather than a statistical safety-stock recommendation.
+
 ## Milestone 7: Bills of materials and procurement
 
 **Learning focus:** Material requirements and supplier constraints
@@ -158,9 +169,12 @@ Potential outcomes:
 - Translate production requirements into material requirements.
 - Account for raw-material inventory and open purchase orders.
 - Introduce supplier lead time, on-time delivery, and reliability data.
+- Compare the simple percentage safety-stock policy with a statistical method
+  after service-level, forecast-variability, and lead-time inputs are approved.
 - Identify projected material shortages and procurement risks.
 
-Decision gate: approve the BOM structure, units of measure, and treatment of open orders.
+Decision gate: approve the BOM structure, units of measure, treatment of open
+orders, and inputs required for any statistical safety-stock comparison.
 
 ## Milestone 8: Capacity and production planning
 

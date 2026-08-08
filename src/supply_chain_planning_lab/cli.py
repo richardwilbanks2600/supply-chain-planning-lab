@@ -19,6 +19,7 @@ from .demand import (
     DemandDataError,
     default_assumptions,
     filter_demand,
+    generate_demand,
     load_default_demand,
     load_fred_snapshot,
     summarize_demand,
@@ -46,8 +47,18 @@ from .driver_forecasting import (
     DriverForecastError,
     calculate_driver_forecasts,
     filter_driver_forecasts,
+    forecast_origins,
     summarize_driver_status,
     summarize_horizons,
+)
+from .inventory import (
+    DEFAULT_SAFETY_STOCK_PERCENT,
+    DEFAULT_STARTING_INVENTORY,
+    InventoryPlanningError,
+    InventoryPolicy,
+    build_inventory_plan,
+    filter_inventory_plan,
+    summarize_inventory_plan,
 )
 from .logging_config import LoggingSetupError, configure_logging
 from .metadata import project_info
@@ -94,6 +105,30 @@ def positive_integer(value: str) -> int:
         raise argparse.ArgumentTypeError("expected a positive integer") from exc
     if parsed < 1:
         raise argparse.ArgumentTypeError("expected a positive integer")
+    return parsed
+
+
+def nonnegative_integer(value: str) -> int:
+    """Validate a nonnegative whole-unit CLI option."""
+
+    try:
+        parsed = int(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("expected a nonnegative integer") from exc
+    if parsed < 0:
+        raise argparse.ArgumentTypeError("expected a nonnegative integer")
+    return parsed
+
+
+def percentage(value: str) -> float:
+    """Validate a percentage from zero through 100."""
+
+    try:
+        parsed = float(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("expected a percentage") from exc
+    if not 0 <= parsed <= 100:
+        raise argparse.ArgumentTypeError("expected a percentage from 0 through 100")
     return parsed
 
 
@@ -265,6 +300,51 @@ def build_parser() -> argparse.ArgumentParser:
         help=f"demand horizon to list (1-{MAX_FORECAST_HORIZON}; default: all)",
     )
     fred_forecast_parser.add_argument(
+        "--limit",
+        type=positive_integer,
+        default=None,
+        help="maximum detail rows to list (default: all)",
+    )
+
+    inventory_parser = subparsers.add_parser(
+        "inventory-plan",
+        help="Calculate finished-goods inventory and net production requirements.",
+    )
+    inventory_parser.add_argument(
+        "--origin",
+        choices=forecast_origins(),
+        default="2024-12",
+        help="historical FRED forecast origin (default: 2024-12)",
+    )
+    inventory_parser.add_argument(
+        "--safety-stock-percent",
+        type=percentage,
+        default=DEFAULT_SAFETY_STOCK_PERCENT,
+        help=(
+            "following-month forecast held as safety stock "
+            f"(default: {DEFAULT_SAFETY_STOCK_PERCENT:.0f})"
+        ),
+    )
+    for product_sku in PRODUCTS:
+        option = f"--starting-{product_sku.lower()}"
+        inventory_parser.add_argument(
+            option,
+            type=nonnegative_integer,
+            default=DEFAULT_STARTING_INVENTORY[product_sku],
+            metavar="UNITS",
+            help=(
+                f"starting inventory for {product_sku} "
+                f"(default: {DEFAULT_STARTING_INVENTORY[product_sku]})"
+            ),
+        )
+    inventory_parser.add_argument(
+        "--product",
+        choices=tuple(PRODUCTS),
+        default=None,
+        metavar="SKU",
+        help="product SKU to list (default: all)",
+    )
+    inventory_parser.add_argument(
         "--limit",
         type=positive_integer,
         default=None,
@@ -538,6 +618,94 @@ def run_fred_forecast(
     return 0
 
 
+def run_inventory_plan(
+    *,
+    forecast_origin: str,
+    safety_stock_percent: float,
+    starting_inventory: dict[str, int],
+    product_sku: str | None,
+    limit: int | None,
+) -> int:
+    """Calculate the approved finished-goods inventory plan."""
+
+    try:
+        fred_records = load_fred_snapshot()
+        assumptions = default_assumptions()
+        demand_records = generate_demand(
+            fred_records,
+            assumptions,
+            demand_end_period="2026-01",
+        )
+        forecasts = calculate_driver_forecasts(
+            fred_records,
+            demand_records,
+            assumptions,
+            origin_start=forecast_origin,
+            origin_end=forecast_origin,
+            max_horizon=13,
+        )
+        policy = InventoryPolicy(
+            starting_inventory=starting_inventory,
+            safety_stock_percent=safety_stock_percent,
+        )
+        records = build_inventory_plan(
+            forecasts,
+            policy,
+            forecast_origin=forecast_origin,
+        )
+        selected = filter_inventory_plan(records, product_sku=product_sku)
+    except (
+        OSError,
+        UnicodeError,
+        DemandDataError,
+        DriverForecastError,
+        InventoryPlanningError,
+    ) as exc:
+        logger.error("Inventory planning failed: %s", exc)
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+
+    summary = summarize_inventory_plan(selected)
+    print("Plan grain: monthly finished-goods product requirements")
+    print(f"Forecast origin: {forecast_origin}")
+    print("Planning horizon: 12 months")
+    print("Gross requirements: FRED-informed product-demand forecast")
+    print(f"Safety stock: {safety_stock_percent:g}% of following-month forecast")
+    print("Scheduled receipts: 0 units")
+    print("Production timing: available in the planned month")
+    print(f"Selected records: {summary.record_count}")
+    print(f"Forecast demand units: {summary.forecast_demand_units:,}")
+    print(
+        "Net production requirement units: "
+        f"{summary.net_production_requirement_units:,}"
+    )
+    print(
+        "Final projected inventory units: "
+        f"{summary.final_projected_inventory_units:,}"
+    )
+    displayed = selected[:limit] if limit is not None else selected
+    print(f"Listed records: {len(displayed)}")
+    print(
+        "period,product_sku,forecast_demand,beginning_inventory,"
+        "scheduled_receipts,inventory_position,safety_basis_period,"
+        "safety_basis_units,safety_target,net_production,projected_ending"
+    )
+    for record in displayed:
+        print(
+            f"{record['period']},{record['product_sku']},"
+            f"{record['forecast_demand_units']},"
+            f"{record['beginning_inventory_units']},"
+            f"{record['scheduled_receipts_units']},"
+            f"{record['inventory_position_units']},"
+            f"{record['safety_stock_basis_period']},"
+            f"{record['safety_stock_basis_units']},"
+            f"{record['safety_stock_target_units']},"
+            f"{record['net_production_requirement_units']},"
+            f"{record['projected_ending_inventory_units']}"
+        )
+    return 0
+
+
 def _period_list(periods: Sequence[str]) -> str:
     """Format detected periods without overwhelming the console."""
 
@@ -620,6 +788,20 @@ def main(argv: Sequence[str] | None = None) -> int:
         return run_fred_forecast(
             product_sku=args.product,
             horizon_months=args.horizon,
+            limit=args.limit,
+        )
+
+    if args.command == "inventory-plan":
+        logger.info("Calculating finished-goods inventory requirements.")
+        return run_inventory_plan(
+            forecast_origin=args.origin,
+            safety_stock_percent=args.safety_stock_percent,
+            starting_inventory={
+                "WIN-2436": args.starting_win_2436,
+                "WIN-3648": args.starting_win_3648,
+                "DOOR-3680": args.starting_door_3680,
+            },
+            product_sku=args.product,
             limit=args.limit,
         )
 

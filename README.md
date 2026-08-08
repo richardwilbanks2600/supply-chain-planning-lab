@@ -29,6 +29,8 @@ orders, company demand, or a forecast.
 - Evaluate forecast magnitude and direction with MAE and bias.
 - Separate known lagged FRED drivers from future drivers that require forecasts.
 - Evaluate 1-12 month FRED-informed demand forecasts with rolling origins.
+- Convert a selected forecast into finished-goods inventory and net production
+  requirements with an adjustable safety-stock policy.
 - Write optional operational logs to the console and detailed logs to a file.
 - Explore the same validated records in a local Streamlit dashboard.
 - Test success and failure behavior with fixtures and mocks instead of live API
@@ -120,6 +122,7 @@ uv run planning-lab inspect --help
 uv run planning-lab demand --help
 uv run planning-lab forecast --help
 uv run planning-lab fred-forecast --help
+uv run planning-lab inventory-plan --help
 ```
 
 ### Processed-data inspection
@@ -245,6 +248,37 @@ snapshot and does not reconstruct historical FRED vintages or publication
 delays. The full design and manual example are in
 [`docs/specs/milestone-05-fred-informed-forecasting.md`](docs/specs/milestone-05-fred-informed-forecasting.md).
 
+### Inventory and net production requirements
+
+Build the default 12-month finished-goods plan from the December 2024 forecast
+origin without an API key or network call:
+
+```shell
+uv run planning-lab inventory-plan --limit 12
+```
+
+Change the safety-stock policy and starting inventory, or list one product:
+
+```shell
+uv run planning-lab inventory-plan \
+  --origin 2024-12 \
+  --safety-stock-percent 25 \
+  --starting-win-2436 300 \
+  --starting-win-3648 200 \
+  --starting-door-3680 50 \
+  --product WIN-2436
+```
+
+The plan treats the FRED-informed forecast as gross demand, adds a safety-stock
+target based on the following month's forecast, and subtracts the inventory
+already available. Projected ending inventory becomes the next month's
+beginning inventory. Scheduled receipts are currently zero, and planned
+production is assumed to be available in the same month.
+
+This is a requirement calculation, not yet a capacity-feasible production
+schedule. The policy, formulas, manual example, and limitations are in
+[`docs/specs/milestone-06-inventory-planning.md`](docs/specs/milestone-06-inventory-planning.md).
+
 ### Logging
 
 Show operational `INFO` messages in the terminal:
@@ -297,10 +331,14 @@ the dashboard:
    that require a FRED forecast.
 5. Select a product and 1-12 month horizon to inspect its rolling-origin chart
    and source lineage.
-6. Open **External market indicator** to work with live FRED data separately.
-7. Configure `FRED_API_KEY`, choose a first observation date, and select
+6. Open **Inventory plan** to choose a forecast origin and adjust starting
+   finished-goods inventory and the safety-stock percentage.
+7. Inspect monthly forecast demand, net production requirements, projected
+   ending inventory, and the displayed calculation.
+8. Open **External market indicator** to work with live FRED data separately.
+9. Configure `FRED_API_KEY`, choose a first observation date, and select
    **Load validated FRED data** for the external view.
-8. Review its descriptive measures, trend chart, trusted rows, and downloads.
+10. Review its descriptive measures, trend chart, trusted rows, and downloads.
 
 The dashboard calls the same FRED-snapshot validation and demand-calculation
 logic used by the CLI. Sliders adjust company market share, customer
@@ -349,6 +387,7 @@ key and do not contact the live FRED service. The suite covers:
 - FRED snapshot completeness, demand lineage, allocation, filtering, and summaries;
 - baseline forecast calculations, filtering, MAE, bias, and manual examples;
 - FRED-driver forecast horizons, lineage, rolling-origin counts, MAE, and bias;
+- inventory roll-forward, safety targets, net production, and manual examples;
 - console and file logging without secret disclosure;
 - a no-network CLI smoke check; and
 - a no-network Streamlit startup check.
@@ -370,6 +409,7 @@ file, chart, and table.
 |   |-- demand.py              # FRED-to-demand assumptions and calculations
 |   |-- forecasting.py         # baseline forecasts and performance measures
 |   |-- driver_forecasting.py  # rolling-origin FRED-informed forecasts
+|   |-- inventory.py           # inventory and net production requirements
 |   |-- inspection.py          # processed-data quality and descriptions
 |   |-- logging_config.py      # console and file logging setup
 |   |-- metadata.py            # safe project setup information

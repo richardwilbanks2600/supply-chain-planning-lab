@@ -12,7 +12,7 @@ def test_installed_command_smoke_check_does_not_call_fred(
 
     captured = capsys.readouterr()
     assert exit_code == 0
-    assert "Supply Chain Planning Lab 0.6.0" in captured.out
+    assert "Supply Chain Planning Lab 0.7.0" in captured.out
     assert "FRED_API_KEY: not configured" in captured.out
 
 
@@ -194,3 +194,30 @@ def test_fred_forecast_command_evaluates_driver_without_an_api_key(
     assert "forecasted,1647," in captured.out
     assert "Selected forecasts: 61" in captured.out
     assert "2019-12,4,2020-04,2020-01,forecasted,WIN-2436" in captured.out
+
+
+def test_inventory_plan_command_calculates_requirements_without_an_api_key(
+    monkeypatch, capsys
+) -> None:
+    monkeypatch.delenv("FRED_API_KEY", raising=False)
+    monkeypatch.setattr("supply_chain_planning_lab.cli.load_dotenv", lambda: None)
+
+    exit_code = main(
+        [
+            "inventory-plan",
+            "--origin",
+            "2024-12",
+            "--product",
+            "WIN-2436",
+            "--limit",
+            "1",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "Plan grain: monthly finished-goods product requirements" in captured.out
+    assert "Forecast origin: 2024-12" in captured.out
+    assert "Safety stock: 25% of following-month forecast" in captured.out
+    assert "Selected records: 12" in captured.out
+    assert "2025-01,WIN-2436,718,300,0,300,2025-02,756,189,607,189" in captured.out

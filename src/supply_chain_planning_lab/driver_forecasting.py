@@ -233,6 +233,12 @@ def filter_driver_forecasts(
     )
 
 
+def forecast_origins() -> tuple[str, ...]:
+    """Return the approved historical forecast origins."""
+
+    return _month_range(FORECAST_ORIGIN_START, FORECAST_ORIGIN_END)
+
+
 def _month_range(start: str, end: str) -> tuple[str, ...]:
     """Return all canonical months in an inclusive range."""
 

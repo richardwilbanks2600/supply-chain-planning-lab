@@ -6,11 +6,11 @@ Build an educational supply-chain planning tool in small, reviewable increments.
 
 ## Current milestone boundary
 
-Milestone 5 is implemented as defined in
-`docs/specs/milestone-05-fred-informed-forecasting.md`. Do not begin Milestone 6
-until inventory-position and safety-stock rules have been reviewed and
-approved. Do not add bills of materials, production planning, optimization, a
-database, or deployment.
+Milestone 6 is implemented as defined in
+`docs/specs/milestone-06-inventory-planning.md`. Do not begin Milestone 7 until
+the bill-of-materials structure, units of measure, treatment of open orders,
+and statistical safety-stock inputs have been reviewed and approved. Do not
+add capacity planning, optimization, a database, or deployment.
 
 ## Architecture
 
@@ -21,6 +21,7 @@ database, or deployment.
 - `models.py` validates data received from FRED before transformation.
 - `inspection.py` validates, filters, and describes processed observations.
 - `driver_forecasting.py` evaluates rolling-origin FRED-informed demand forecasts.
+- `inventory.py` rolls finished-goods inventory into net production requirements.
 - `demand.py` converts the fixed FRED snapshot into a transparent demand scenario.
 - `forecasting.py` calculates and evaluates explainable demand baselines.
 - `workflow.py` coordinates shared fetch and transformation logic for both interfaces.
@@ -39,6 +40,7 @@ uv run planning-lab project-info
 uv run planning-lab fetch --start-date 2020-01-01
 uv run planning-lab inspect data/processed/fred_permit_<timestamp>.csv
 uv run planning-lab fred-forecast --product WIN-2436 --horizon 4 --limit 12
+uv run planning-lab inventory-plan --origin 2024-12 --limit 12
 uv run planning-lab --verbose --log-file logs/planning-lab.log fetch
 uv run streamlit run src/supply_chain_planning_lab/dashboard.py
 uv run pytest
