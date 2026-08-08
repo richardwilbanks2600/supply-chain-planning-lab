@@ -3,6 +3,7 @@ name = "supply-chain-planning-lab"
 version = "0.10.0"
 description = "An educational FRED-driven demand and supply-chain planning tool."
 readme = "README.md"
+license = "MIT"
 requires-python = ">=3.12"
 dependencies = [
     "pydantic>=2.13.4",
@@ -18,6 +19,11 @@ planning-lab = "supply_chain_planning_lab.cli:main"
 dev = [
     "pytest>=8.4.0",
     "pytest-cov>=7.0.0",
+]
+report = [
+    "ipykernel>=6.30.0",
+    "jupyter>=1.1.0",
+    "matplotlib>=3.10.0",
 ]
 
 [build-system]

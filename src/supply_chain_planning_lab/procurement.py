@@ -51,6 +51,8 @@ class ProcurementPolicy:
     receipt_treatment: ReceiptTreatment = "full"
 
     def __post_init__(self) -> None:
+        """Reject incomplete inventory mappings and unsupported policy values."""
+
         if set(self.starting_inventory) != set(COMPONENTS):
             raise ProcurementPlanningError(
                 "Material inventory must contain every component exactly once."
@@ -410,6 +412,8 @@ def _safety_target(
     comparison: SafetyStockComparison,
     percentage: float,
 ) -> int:
+    """Select the whole-unit safety target for the configured method."""
+
     if method == "none":
         return 0
     if method == "percentage":
@@ -425,6 +429,8 @@ def _statistical_safety_stock(
     lead_time_standard_deviation: float,
     z_value: float,
 ) -> int:
+    """Estimate whole-unit safety stock from demand and lead-time variation."""
+
     variance = (
         average_lead_time * demand_error_standard_deviation**2
         + average_monthly_requirement**2 * lead_time_standard_deviation**2
@@ -433,6 +439,8 @@ def _statistical_safety_stock(
 
 
 def _parse_period(value: str) -> date:
+    """Parse a canonical monthly period used by procurement calculations."""
+
     try:
         parsed = date.fromisoformat(f"{value}-01")
     except ValueError as exc:
@@ -447,6 +455,8 @@ def _parse_period(value: str) -> date:
 
 
 def _shift_month(period: str, months: int) -> str:
+    """Shift a canonical monthly period by a signed number of months."""
+
     parsed = _parse_period(period)
     month_index = parsed.year * 12 + parsed.month - 1 + months
     year, zero_based_month = divmod(month_index, 12)

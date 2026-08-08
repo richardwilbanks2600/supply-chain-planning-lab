@@ -5,6 +5,10 @@ fixed FRED construction-market history into fictional internal demand through
 visible business assumptions. It offers both a repeatable command-line
 workflow and an interactive local Streamlit dashboard.
 
+It is designed for students and first-time supply-chain learners who want to
+see how an external demand signal flows through forecasting, inventory,
+procurement, and finite capacity without treating the model as a black box.
+
 The project uses the Federal Reserve Bank of St. Louis FRED API and the
 [`PERMIT` series](https://fred.stlouisfed.org/series/PERMIT): new privately
 owned housing units authorized in permit-issuing places. The series is monthly
@@ -51,6 +55,9 @@ orders, company demand, or a forecast.
 - [`uv`](https://docs.astral.sh/uv/getting-started/installation/)
 - A free [FRED API key](https://fredaccount.stlouisfed.org/apikeys) for live
   fetches
+- [Quarto](https://quarto.org/docs/get-started/) and
+  [Typst](https://github.com/typst/typst#installation) only when rebuilding the
+  PDF report
 
 `uv` installs the compatible Python version and project dependencies, so a
 separate Python installation is not required.
@@ -70,7 +77,17 @@ Install the project and development dependencies:
 uv sync
 ```
 
-Create a local environment file:
+The fastest path to a working dashboard does not require an API key. Run:
+
+```shell
+uv run streamlit run src/supply_chain_planning_lab/dashboard.py
+```
+
+Open the local URL printed by Streamlit. The integrated planning views use the
+committed FRED snapshot; only the separate live **Source data** view needs an
+API key.
+
+To use live FRED fetching, create a local environment file:
 
 macOS or Linux:
 
@@ -98,6 +115,9 @@ Check the setup without contacting FRED or revealing the key:
 ```shell
 uv run planning-lab project-info
 ```
+
+Project handoff references: [data dictionary](docs/data-dictionary.md),
+[reproducible report](reports/capacity-analysis.qmd), and [MIT license](LICENSE).
 
 ## Command-line interface
 
@@ -469,12 +489,70 @@ For a final end-to-end check, use a real key to run one CLI fetch and one
 dashboard request, then inspect the raw JSON, processed CSV, console output, log
 file, chart, and table.
 
+## Reproducible report
+
+The authoritative Quarto source asks how the FRED-driven 2025 demand outlook
+translates into capacity pressure and how 40 monthly Window Assembly overtime
+hours change deferred production. It imports the same project modules used by
+the dashboard and uses only the committed FRED snapshot.
+
+Install the locked report dependencies and render from the repository root:
+
+```shell
+uv sync --group report
+quarto render reports/capacity-analysis.qmd
+```
+
+The result is [`reports/capacity-analysis.pdf`](reports/capacity-analysis.pdf).
+The source states its FRED date range, forecast origin, scenario assumptions,
+units, limitations, and render date. No API key is required.
+
+## Common problems
+
+### `uv` is not recognized
+
+Install `uv` from its official installation page, restart the terminal, and
+run `uv --version` before repeating `uv sync`.
+
+### The dashboard command cannot find the package
+
+Run commands from the repository root and complete `uv sync` first. The root
+folder is the one containing `pyproject.toml`.
+
+### A live FRED request says the API key is missing
+
+Copy `.env.example` to `.env`, replace the placeholder, and run
+`uv run planning-lab project-info`. The integrated dashboard and all planning
+commands work from committed data without a key.
+
+### FRED rejects a request or the network times out
+
+Confirm the key and internet connection, then retry. The raw response is
+preserved before validation when FRED returns content. Do not post the key in
+an issue or log.
+
+### A generated CSV fails inspection
+
+Use the exact processed CSV created by `planning-lab fetch`. The inspector
+rejects changed headers, invalid units, malformed months, duplicate months,
+and nonfinite values instead of guessing how to repair them.
+
+### `quarto` is not recognized
+
+Install Quarto and Typst, restart the terminal, and verify `quarto --version`
+and `typst --version`. Then run `uv sync --group report` before rendering.
+Neither tool is needed to run the app.
+
 ## Project structure
 
 ```text
 .
 |-- docs/
+|   |-- data-dictionary.md     # fields, units, lineage, and missing rules
 |   `-- specs/                  # milestone scope and acceptance criteria
+|-- reports/
+|   |-- capacity-analysis.qmd  # authoritative reproducible report
+|   `-- capacity-analysis.pdf  # rendered report artifact
 |-- src/supply_chain_planning_lab/
 |   |-- api.py                 # FRED HTTP boundary
 |   |-- cli.py                 # command-line interface
@@ -503,6 +581,7 @@ file, chart, and table.
 |   |-- fixtures/              # stable valid and invalid FRED examples
 |   `-- test_*.py              # unit, boundary, workflow, and smoke tests
 |-- .env.example
+|-- LICENSE                    # MIT open-source license
 |-- pyproject.toml
 `-- uv.lock
 ```

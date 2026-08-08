@@ -52,6 +52,8 @@ class CapacityPolicy:
     run_rates: Mapping[str, float] | None = None
 
     def __post_init__(self) -> None:
+        """Normalize optional mappings and reject unsafe capacity assumptions."""
+
         overtime = (
             dict(DEFAULT_OVERTIME_HOURS)
             if self.overtime_hours is None

@@ -130,10 +130,14 @@ class SupplierDelivery:
 
     @property
     def on_time(self) -> bool:
+        """Return whether actual lead time met the promised lead time."""
+
         return self.actual_lead_months <= self.promised_lead_months
 
     @property
     def in_full(self) -> bool:
+        """Return whether the received quantity met the ordered quantity."""
+
         return self.received_quantity >= self.ordered_quantity
 
 

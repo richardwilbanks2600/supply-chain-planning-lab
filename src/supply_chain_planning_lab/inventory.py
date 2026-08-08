@@ -30,6 +30,8 @@ class InventoryPolicy:
     safety_stock_percent: float = DEFAULT_SAFETY_STOCK_PERCENT
 
     def __post_init__(self) -> None:
+        """Reject incomplete inventory mappings and invalid policy percentages."""
+
         if set(self.starting_inventory) != set(PRODUCTS):
             raise InventoryPlanningError(
                 "Starting inventory must contain each approved product exactly once."

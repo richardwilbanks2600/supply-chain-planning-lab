@@ -1,4 +1,4 @@
-"""Command-line interface for the data workflow."""
+"""Command-line interface for the educational planning workflow."""
 
 import argparse
 import logging
@@ -195,7 +195,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser = argparse.ArgumentParser(
         prog="planning-lab",
-        description="Collect and prepare data for supply-chain planning exercises.",
+        description=(
+            "Explore a FRED-driven demand-to-capacity supply-chain planning lab."
+        ),
     )
     parser.add_argument(
         "--verbose",

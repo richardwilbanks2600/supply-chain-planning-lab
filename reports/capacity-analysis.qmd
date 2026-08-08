@@ -1,0 +1,173 @@
+---
+title: "From FRED demand to capacity pressure"
+subtitle: "A reproducible teaching comparison of baseline capacity and Window Assembly overtime"
+author: "Richard Wilbanks"
+date: today
+format:
+  pdf:
+    pdf-engine: typst
+    toc: false
+    number-sections: true
+    colorlinks: true
+    linkcolor: "1f4e79"
+    urlcolor: "1f4e79"
+jupyter: python3
+execute:
+  echo: false
+  warning: false
+---
+
+```{python}
+from dataclasses import replace
+from datetime import date
+
+import matplotlib.pyplot as plt
+
+from supply_chain_planning_lab.demand import load_fred_snapshot
+from supply_chain_planning_lab.integrated_planning import build_integrated_plan
+from supply_chain_planning_lab.scenario import default_planning_scenario
+
+FRED_SOURCE_URL = "https://fred.stlouisfed.org/series/PERMIT"
+FORECAST_ORIGIN = "2024-12"
+WINDOW_OVERTIME_HOURS = 40.0
+
+fred_records = load_fred_snapshot()
+baseline_scenario = default_planning_scenario(forecast_origin=FORECAST_ORIGIN)
+baseline_plan = build_integrated_plan(fred_records, baseline_scenario)
+
+overtime_by_center = dict(baseline_scenario.capacity.overtime_hours)
+overtime_by_center["WINDOW-ASSEMBLY"] = WINDOW_OVERTIME_HOURS
+overtime_scenario = replace(
+    baseline_scenario,
+    capacity=replace(
+        baseline_scenario.capacity,
+        overtime_hours=overtime_by_center,
+    ),
+)
+overtime_plan = build_integrated_plan(fred_records, overtime_scenario)
+
+
+def window_rows(plan):
+    """Return the Window Assembly records used in the report."""
+
+    return [
+        record
+        for record in plan.capacity_plan.work_centers
+        if record["work_center_id"] == "WINDOW-ASSEMBLY"
+    ]
+
+
+baseline_rows = window_rows(baseline_plan)
+overtime_rows = window_rows(overtime_plan)
+baseline_deferred = baseline_plan.summary.ending_deferred_production_units
+overtime_deferred = overtime_plan.summary.ending_deferred_production_units
+deferred_reduction = baseline_deferred - overtime_deferred
+```
+
+# Executive summary
+
+The default plan converts the fixed FRED permit history into **`{python} f"{baseline_plan.summary.forecast_demand_units:,}"` units** of forecast demand for 2025. After finished-goods inventory netting, it requires **`{python} f"{baseline_plan.summary.net_production_requirement_units:,}"` units** of production.
+
+Under the approved baseline capacity assumptions, Window Assembly is overloaded in **`{python} sum(row["overloaded"] for row in baseline_rows)` of 12 months** and the integrated plan ends December with **`{python} f"{baseline_deferred:,}"` deferred units**. Adding 40 overtime hours to Window Assembly in every month reduces ending deferred production by **`{python} f"{deferred_reduction:,}"` units**, to **`{python} f"{overtime_deferred:,}"`**. It also reduces overloaded Window Assembly months to **`{python} sum(row["overloaded"] for row in overtime_rows)`**.
+
+This is a scenario comparison, not a recommendation that overtime is free or optimal. It shows how one visible capacity assumption changes the feasible production plan while demand, inventory, suppliers, and all other assumptions remain fixed.
+
+# Data and method
+
+The analysis uses the project's committed snapshot of the Federal Reserve Bank of St. Louis **[PERMIT housing permits series](https://fred.stlouisfed.org/series/PERMIT)**, covering **`{python} fred_records[0]["period"]` through `{python} fred_records[-1]["period"]`**. FRED reports the series as thousands of housing units at a seasonally adjusted annual rate. The project converts that external market pace into fictional internal product demand using the documented three-month lag, 0.10% market share, product units per home, and customer allocations.
+
+Both scenarios use a December 2024 forecast origin and a January-December 2025 planning horizon. The comparison changes only Window Assembly overtime from 0 to 40 hours per month. Capacity uses 20 working days, one 8-hour shift, 10% planned downtime, four setup hours per active product, and the approved product run rates. The source dataset, formulas, and missing-value rules are documented in the project [data dictionary](../docs/data-dictionary.md).
+
+Render date: **`{python} date.today().isoformat()`**.
+
+```{=typst}
+#pagebreak()
+```
+
+# Results
+
+```{python}
+#| output: asis
+summary_rows = [
+    (
+        "Forecast demand units",
+        baseline_plan.summary.forecast_demand_units,
+        overtime_plan.summary.forecast_demand_units,
+    ),
+    (
+        "Net production requirement units",
+        baseline_plan.summary.net_production_requirement_units,
+        overtime_plan.summary.net_production_requirement_units,
+    ),
+    (
+        "Overloaded Window Assembly months",
+        sum(row["overloaded"] for row in baseline_rows),
+        sum(row["overloaded"] for row in overtime_rows),
+    ),
+    ("Ending deferred units", baseline_deferred, overtime_deferred),
+]
+
+print("| Metric | Baseline | 40 overtime hours/month |")
+print("|---|---:|---:|")
+for label, baseline_value, overtime_value in summary_rows:
+    print(f"| {label} | {baseline_value:,} | {overtime_value:,} |")
+print("\n: Scenario comparison for the 2025 planning horizon")
+```
+
+*Table 1. Scenario comparison for the 2025 planning horizon.*
+
+The demand and unconstrained production requirement are identical because overtime acts only at the capacity layer. In the baseline, deferred units compound: each month inherits unfinished units from the preceding month. Forty overtime hours nearly match the steady monthly Window Assembly load and eliminate the year-end backlog, although February remains slightly overloaded before its 10 deferred units are recovered in March.
+
+```{python}
+#| fig-cap: "Monthly Window Assembly backlog under the two capacity scenarios"
+periods = [row["period"] for row in baseline_rows]
+baseline_backlog = [row["ending_deferred_units"] for row in baseline_rows]
+overtime_backlog = [row["ending_deferred_units"] for row in overtime_rows]
+
+fig, ax = plt.subplots(figsize=(8.2, 3.3))
+ax.plot(periods, baseline_backlog, marker="o", linewidth=2, label="Baseline")
+ax.plot(
+    periods,
+    overtime_backlog,
+    marker="o",
+    linewidth=2,
+    label="40 overtime hours/month",
+)
+ax.set_title("Window Assembly deferred production")
+ax.set_xlabel("Production month")
+ax.set_ylabel("Ending deferred units")
+ax.tick_params(axis="x", rotation=45)
+ax.grid(axis="y", alpha=0.25)
+ax.legend(frameon=False)
+fig.tight_layout()
+plt.show()
+```
+
+# Interpretation and limitations
+
+The central planning lesson is that a demand forecast is not automatically a feasible production plan. The baseline's 2025 requirement exceeds Window Assembly's effective capacity, so deferred work accumulates even though the demand calculation itself does not change. Overtime expands available capacity and allows the same requirement to be completed by year end.
+
+The exact outcome depends on fictional teaching assumptions: market share, product attachment rates, starting inventory, safety stock, run rates, downtime, setup time, and overtime. The FRED snapshot is revised history and does not recreate the values a planner would have seen in each historical month. The model does not include overtime cost, labor constraints, sequencing, cancellations, or optimization. Results should therefore be interpreted as an explainable scenario demonstration, not an operating recommendation or causal estimate.
+
+```{=typst}
+#pagebreak()
+```
+
+# Reproduction
+
+From the repository root, install the locked project and report dependencies, then render the authoritative source:
+
+```shell
+uv sync --group report
+quarto render reports/capacity-analysis.qmd
+```
+
+The rendered artifact is `reports/capacity-analysis.pdf`. No API key or network call to FRED is required because the report uses the committed snapshot.
+
+Use these checks to confirm a clean reproduction:
+
+- `uv run pytest` completes without a live network request.
+- The committed FRED input contains 312 monthly records from 2000-01 through 2025-12.
+- The baseline produces 16,152 forecast demand units, 15,938 net production requirement units, 12 overloaded Window Assembly months, and 2,982 ending deferred units.
+- The overtime scenario changes only Window Assembly overtime and ends with zero deferred units.
+- The PDF is regenerated from this `.qmd`; it is never edited by hand.
