@@ -37,6 +37,8 @@ orders, company demand, or a forecast.
   using a fixed fictional delivery history.
 - Compare production requirements with finite work-center capacity and carry
   deferred production through a proportional allocation plan.
+- Explore the forecast-to-capacity workflow from one shared learner scenario
+  with baseline comparison, exceptions, reset, lineage, and CSV downloads.
 - Write optional operational logs to the console and detailed logs to a file.
 - Explore the same validated records in a local Streamlit dashboard.
 - Test success and failure behavior with fixtures and mocks instead of live API
@@ -389,35 +391,27 @@ uv run streamlit run src/supply_chain_planning_lab/dashboard.py
 Streamlit prints a local URL and normally opens it in the default browser. In
 the dashboard:
 
-1. Open **Internal demand** to inspect the fixed FRED history without an API
-   key.
-2. Adjust company share, customer allocation, or units per home and inspect
-   the recalculated monthly totals and lineage rows.
-3. Open **Forecast baselines** to compare all methods and explore actual versus
-   forecast demand for each product.
-4. Open **FRED-informed forecast** to compare known lagged drivers with horizons
-   that require a FRED forecast.
-5. Select a product and 1-12 month horizon to inspect its rolling-origin chart
-   and source lineage.
-6. Open **Inventory plan** to choose a forecast origin and adjust starting
-   finished-goods inventory and the safety-stock percentage.
-7. Inspect monthly forecast demand, net production requirements, projected
-   ending inventory, and the displayed calculation.
-8. Open **Materials and procurement** to inspect the BOM, raw-material plan,
-   suppliers, purchase timing, and safety-stock comparison.
-9. Switch between full and OTIF-adjusted scheduled receipts to see how supplier
-   reliability changes purchase recommendations.
-10. Open **Capacity plan** to change calendars, downtime, overtime, setup, or
-    run rates and inspect bottlenecks and deferred production.
-11. Open **External market indicator** to work with live FRED data separately.
-12. Configure `FRED_API_KEY`, choose a first observation date, and select
+1. Begin with **Overview**, which explains the planning story without assuming
+   prior supply-chain knowledge.
+2. Use **Your working scenario** in the sidebar to change assumptions shared by
+   every downstream view.
+3. Compare the working scenario with approved defaults at the same forecast
+   origin and inspect purchasing, supplier, or capacity exceptions.
+4. Follow **Demand signal**, **Forecast**, **Inventory**, **Materials and
+   procurement**, and **Capacity** in learning order.
+5. Keep unconstrained requirements separate from capacity-feasible output and
+   inspect deferred production instead of hiding it.
+6. Download current planning records from the Overview or reset all assumptions
+   to approved defaults.
+7. Open **Source data** to work with live FRED data separately.
+8. Configure `FRED_API_KEY`, choose a first observation date, and select
    **Load validated FRED data** for the external view.
-13. Review its descriptive measures, trend chart, trusted rows, and downloads.
+9. Review its descriptive measures, trend chart, trusted rows, and downloads.
 
-The dashboard calls the same FRED-snapshot validation and demand-calculation
-logic used by the CLI. Sliders adjust company market share, customer
-allocation, and units per home deterministically; no random demand is
-generated.
+The dashboard calls the same calculation modules used by the CLI. Its shared
+scenario is session-only, deterministic, and resettable; no random demand is
+generated and no scenario database is used. The baseline uses approved default
+assumptions at the working scenario's selected forecast origin.
 
 The dashboard runs locally for this project. Deployment is not required.
 
@@ -465,6 +459,8 @@ key and do not contact the live FRED service. The suite covers:
 - BOM explosion, raw-material netting, supplier metrics, receipt risk, and
   statistical safety stock;
 - work-center load, finite-capacity allocation, overloads, and backlog;
+- integrated scenario propagation, baseline comparison, reset behavior, CSV
+  serialization, and learner-first dashboard startup;
 - console and file logging without secret disclosure;
 - a no-network CLI smoke check; and
 - a no-network Streamlit startup check.
@@ -491,6 +487,8 @@ file, chart, and table.
 |   |-- procurement.py         # material safety stock and purchasing logic
 |   |-- planning_workflow.py   # forecast-to-procurement coordination
 |   |-- capacity.py            # finite work-center capacity and backlog
+|   |-- scenario.py            # shared dashboard planning assumptions
+|   |-- integrated_planning.py # end-to-end scenario summaries and downloads
 |   |-- inspection.py          # processed-data quality and descriptions
 |   |-- logging_config.py      # console and file logging setup
 |   |-- metadata.py            # safe project setup information

@@ -26,7 +26,10 @@ from supply_chain_planning_lab.capacity import (
 from supply_chain_planning_lab.cli import DEFAULT_START_DATE, SERIES_ID
 from supply_chain_planning_lab.demand import (
     CUSTOMERS,
+    DEFAULT_CUSTOMER_ALLOCATIONS,
     DEFAULT_LAG_MONTHS,
+    DEFAULT_MARKET_SHARE_PERCENT,
+    DEFAULT_UNITS_PER_HOME,
     PRODUCTS,
     DemandAssumptions,
     DemandDataError,
@@ -61,6 +64,11 @@ from supply_chain_planning_lab.inventory import (
     filter_inventory_plan,
     summarize_inventory_plan,
 )
+from supply_chain_planning_lab.integrated_planning import (
+    IntegratedPlan,
+    build_integrated_plan,
+    records_csv,
+)
 from supply_chain_planning_lab.materials import (
     BOM,
     COMPONENTS,
@@ -79,6 +87,10 @@ from supply_chain_planning_lab.procurement import (
     compare_safety_stock,
     filter_procurement_plan,
     summarize_procurement_plan,
+)
+from supply_chain_planning_lab.scenario import (
+    PlanningScenario,
+    default_planning_scenario,
 )
 from supply_chain_planning_lab.inspection import summarize_records
 from supply_chain_planning_lab.logging_config import configure_logging
@@ -102,55 +114,858 @@ def main() -> None:
 
     st.title("Supply Chain Planning Lab")
     st.write(
-        "Translate a fixed FRED market history into an interactive fictional "
-        "customer-demand scenario with visible assumptions."
+        "Learn how one market signal becomes demand, inventory, purchasing, and "
+        "a capacity-feasible production plan. No prior planning knowledge is assumed."
     )
+    try:
+        fred_records = load_fred_snapshot()
+        scenario = _render_shared_scenario_controls()
+        working_plan = build_integrated_plan(fred_records, scenario)
+        baseline_plan = build_integrated_plan(
+            fred_records,
+            default_planning_scenario(forecast_origin=scenario.forecast_origin),
+        )
+    except (OSError, UnicodeError, ValueError) as exc:
+        logger.error("Integrated dashboard scenario could not be calculated: %s", exc)
+        st.error(f"The planning scenario could not be calculated: {exc}")
+        return
+
     (
+        overview_tab,
         demand_tab,
         forecast_tab,
-        fred_forecast_tab,
         inventory_tab,
         procurement_tab,
         capacity_tab,
         external_tab,
     ) = st.tabs(
         (
-            "Internal demand",
-            "Forecast baselines",
-            "FRED-informed forecast",
-            "Inventory plan",
+            "Overview",
+            "Demand signal",
+            "Forecast",
+            "Inventory",
             "Materials and procurement",
-            "Capacity plan",
-            "External market indicator",
+            "Capacity",
+            "Source data",
         )
     )
+    with overview_tab:
+        _render_integrated_overview(working_plan, baseline_plan)
     with demand_tab:
-        scenario = _render_internal_demand()
+        _render_integrated_demand(fred_records, working_plan)
     with forecast_tab:
-        if scenario is not None:
-            _render_forecast_baselines(scenario[1])
-    with fred_forecast_tab:
-        if scenario is not None:
-            _render_fred_informed_forecast(*scenario)
+        _render_integrated_forecast(fred_records, working_plan)
     with inventory_tab:
-        if scenario is not None:
-            inventory_scenario = _render_inventory_plan(scenario[0], scenario[2])
+        _render_integrated_inventory(working_plan)
     with procurement_tab:
-        if scenario is not None:
-            procurement_inputs = _render_procurement_plan(
-                scenario[0],
-                scenario[2],
-                inventory_scenario[0],
-                inventory_scenario[1],
-            )
+        _render_integrated_procurement(working_plan)
     with capacity_tab:
-        if scenario is not None:
-            _render_capacity_plan(
-                procurement_inputs,
-                inventory_scenario[0],
-            )
+        _render_integrated_capacity(working_plan)
     with external_tab:
         _render_external_indicator()
+
+
+def _render_shared_scenario_controls() -> PlanningScenario:
+    """Collect one session-only set of assumptions for every planning layer."""
+
+    st.sidebar.header("Your working scenario")
+    st.sidebar.write(
+        "Change an assumption here and every downstream page recalculates. "
+        "Nothing is saved outside this browser session."
+    )
+    if st.sidebar.button("Reset all assumptions to defaults"):
+        for key in tuple(st.session_state):
+            if str(key).startswith("scenario_"):
+                del st.session_state[key]
+        st.rerun()
+
+    forecast_origin = st.sidebar.selectbox(
+        "Forecast starting point",
+        forecast_origins(),
+        index=len(forecast_origins()) - 1,
+        key="scenario_forecast_origin",
+        help=(
+            "Pretend this historical month is today. The plan uses only the "
+            "approved information treatment at that starting point."
+        ),
+    )
+
+    with st.sidebar.expander("1. Demand assumptions", expanded=True):
+        market_share_percent = st.slider(
+            "Company market share (%)",
+            min_value=0.01,
+            max_value=1.00,
+            value=DEFAULT_MARKET_SHARE_PERCENT,
+            step=0.01,
+            format="%.2f%%",
+            key="scenario_market_share",
+            help="The fictional company's share of the national housing pace.",
+        )
+        allocation_cuts = st.slider(
+            "Customer allocation boundaries (%)",
+            min_value=0,
+            max_value=100,
+            value=(50, 80),
+            step=1,
+            key="scenario_customer_allocations",
+            help=(
+                "The first handle is the builder share. The space between handles "
+                "is the distributor share. The remainder is the remodeler share."
+            ),
+        )
+        first_cut, second_cut = allocation_cuts
+        customer_allocations = {
+            "Building Houses Company": first_cut / 100,
+            "Building Supply Company": (second_cut - first_cut) / 100,
+            "Building Remodeler": (100 - second_cut) / 100,
+        }
+        units_per_home = {
+            product_sku: float(
+                st.number_input(
+                    f"{product_sku} units per home",
+                    min_value=0.0,
+                    value=DEFAULT_UNITS_PER_HOME[product_sku],
+                    step=1.0,
+                    key=f"scenario_units_{product_sku}",
+                    help=PRODUCTS[product_sku],
+                )
+            )
+            for product_sku in PRODUCTS
+        }
+
+    with st.sidebar.expander("2. Finished-goods inventory"):
+        finished_safety_percent = st.slider(
+            "Finished-goods safety stock (%)",
+            min_value=0,
+            max_value=100,
+            value=int(DEFAULT_SAFETY_STOCK_PERCENT),
+            step=5,
+            key="scenario_finished_safety",
+            help="Percentage of the following month's forecast kept as protection.",
+        )
+        finished_inventory = {
+            product_sku: int(
+                st.number_input(
+                    f"Starting finished units — {product_sku}",
+                    min_value=0,
+                    value=DEFAULT_STARTING_INVENTORY[product_sku],
+                    step=10,
+                    key=f"scenario_finished_inventory_{product_sku}",
+                )
+            )
+            for product_sku in PRODUCTS
+        }
+
+    with st.sidebar.expander("3. Materials and supplier risk"):
+        material_method = st.selectbox(
+            "Material safety-stock method",
+            SAFETY_STOCK_METHODS,
+            index=SAFETY_STOCK_METHODS.index("percentage"),
+            key="scenario_material_method",
+            format_func=lambda value: {
+                "none": "No extra material",
+                "percentage": "Percentage of next month's need",
+                "statistical": "Demand and supplier variability",
+            }[value],
+        )
+        material_percentage = st.slider(
+            "Material safety stock (%)",
+            min_value=0,
+            max_value=100,
+            value=25,
+            step=5,
+            key="scenario_material_percentage",
+        )
+        service_level = st.selectbox(
+            "Target material service level",
+            tuple(SERVICE_LEVEL_Z),
+            index=1,
+            key="scenario_service_level",
+            format_func=lambda value: f"{value:g}%",
+            help="Used only by the statistical material safety-stock method.",
+        )
+        receipt_treatment = st.selectbox(
+            "How should open supplier orders be counted?",
+            RECEIPT_TREATMENTS,
+            key="scenario_receipt_treatment",
+            format_func=lambda value: {
+                "full": "Count the full scheduled quantity",
+                "risk_adjusted": "Reduce it using supplier OTIF history",
+            }[value],
+            help="OTIF means delivered on time and in full.",
+        )
+        material_inventory = {
+            component_sku: int(
+                st.number_input(
+                    f"Starting material — {component_sku}",
+                    min_value=0,
+                    value=DEFAULT_MATERIAL_INVENTORY[component_sku],
+                    step=50,
+                    key=f"scenario_material_inventory_{component_sku}",
+                    help=f"{component.name}, measured in {component.unit}.",
+                )
+            )
+            for component_sku, component in COMPONENTS.items()
+        }
+
+    with st.sidebar.expander("4. Production capacity"):
+        working_days = st.slider(
+            "Working days per month",
+            1,
+            31,
+            DEFAULT_WORKING_DAYS,
+            key="scenario_working_days",
+        )
+        shifts_per_day = st.slider(
+            "Shifts per day",
+            1,
+            3,
+            DEFAULT_SHIFTS_PER_DAY,
+            key="scenario_shifts",
+        )
+        hours_per_shift = st.slider(
+            "Hours per shift",
+            4.0,
+            12.0,
+            DEFAULT_HOURS_PER_SHIFT,
+            0.5,
+            key="scenario_shift_hours",
+        )
+        downtime_percent = st.slider(
+            "Planned downtime (%)",
+            0,
+            50,
+            int(DEFAULT_DOWNTIME_PERCENT),
+            5,
+            key="scenario_downtime",
+        )
+        setup_hours = st.slider(
+            "Setup hours per active product",
+            0.0,
+            16.0,
+            DEFAULT_SETUP_HOURS,
+            1.0,
+            key="scenario_setup_hours",
+        )
+        overtime_hours = {
+            work_center_id: float(
+                st.slider(
+                    f"{work_center_name} overtime hours",
+                    0,
+                    40,
+                    0,
+                    4,
+                    key=f"scenario_overtime_{work_center_id}",
+                )
+            )
+            for work_center_id, work_center_name in WORK_CENTERS.items()
+        }
+        run_rates = {
+            product_sku: float(
+                st.number_input(
+                    f"{product_sku} units produced per hour",
+                    min_value=0.1,
+                    value=DEFAULT_RUN_RATES[product_sku],
+                    step=0.5,
+                    key=f"scenario_run_rate_{product_sku}",
+                )
+            )
+            for product_sku in PRODUCTS
+        }
+
+    return PlanningScenario(
+        forecast_origin=forecast_origin,
+        demand=DemandAssumptions(
+            market_share_percent=market_share_percent,
+            customer_allocations=customer_allocations,
+            units_per_home=units_per_home,
+        ),
+        finished_goods=InventoryPolicy(
+            starting_inventory=finished_inventory,
+            safety_stock_percent=float(finished_safety_percent),
+        ),
+        procurement=ProcurementPolicy(
+            starting_inventory=material_inventory,
+            safety_stock_method=material_method,
+            percentage=float(material_percentage),
+            service_level=service_level,
+            receipt_treatment=receipt_treatment,
+        ),
+        capacity=CapacityPolicy(
+            working_days_per_month=working_days,
+            shifts_per_day=shifts_per_day,
+            hours_per_shift=hours_per_shift,
+            planned_downtime_percent=float(downtime_percent),
+            setup_hours_per_active_product=setup_hours,
+            overtime_hours=overtime_hours,
+            run_rates=run_rates,
+        ),
+    )
+
+
+def _render_integrated_overview(
+    working: IntegratedPlan,
+    baseline: IntegratedPlan,
+) -> None:
+    """Introduce the planning story, comparisons, exceptions, and downloads."""
+
+    st.header("Start here: follow one planning story")
+    st.write(
+        "The dashboard starts with a national building-permit signal, translates it "
+        "into fictional company demand, decides what should be made and purchased, "
+        "and finally checks what the factory can actually build."
+    )
+    st.info(
+        "Use the controls on the left to create a working scenario. The baseline "
+        "uses the approved defaults at the same forecast starting point, so the "
+        "comparison isolates your changes."
+    )
+    st.subheader("How the pieces connect")
+    st.markdown(
+        "1. **Demand signal:** building permits provide an external market pace.\n"
+        "2. **Forecast:** unknown future permit values must be estimated.\n"
+        "3. **Inventory:** stock on hand reduces what must be produced.\n"
+        "4. **Materials:** the bill of materials determines what must be purchased.\n"
+        "5. **Capacity:** available work-center hours limit what can be built."
+    )
+
+    comparison_rows = _summary_comparison_rows(working, baseline)
+    st.subheader("Baseline compared with your working scenario")
+    st.dataframe(
+        comparison_rows,
+        hide_index=True,
+        width="stretch",
+        column_config={
+            "measure": "Planning measure",
+            "baseline": "Baseline",
+            "working": "Working scenario",
+            "difference": st.column_config.NumberColumn(
+                "Difference", format="%+d"
+            ),
+            "meaning": "Why it matters",
+        },
+    )
+
+    st.subheader("What needs attention?")
+    past_due = [
+        row
+        for row in working.procurement_records
+        if row["release_status"] == "past_due"
+        and row["net_purchase_receipt_units"] > 0
+    ]
+    at_risk = [
+        row
+        for row in working.procurement_records
+        if row["receipt_at_risk_units"] > 0
+    ]
+    overloaded = [
+        row for row in working.capacity_plan.work_centers if row["overloaded"]
+    ]
+    exception_columns = st.columns(4)
+    exception_columns[0].metric("Past-due purchase releases", len(past_due))
+    exception_columns[1].metric("Supplier receipts at risk", len(at_risk))
+    exception_columns[2].metric("Overloaded work-center months", len(overloaded))
+    exception_columns[3].metric(
+        "Ending deferred production",
+        f"{working.summary.ending_deferred_production_units:,}",
+    )
+    with st.expander("Inspect purchasing exceptions"):
+        if past_due or at_risk:
+            st.dataframe(
+                past_due + [row for row in at_risk if row not in past_due],
+                hide_index=True,
+                width="stretch",
+            )
+        else:
+            st.success("No purchasing exceptions appear in this scenario.")
+    with st.expander("Inspect overloaded work centers"):
+        if overloaded:
+            st.dataframe(overloaded, hide_index=True, width="stretch")
+        else:
+            st.success("The requested production fits within effective capacity.")
+
+    final_deferred = {}
+    for row in working.capacity_plan.products:
+        final_deferred[row["product_sku"]] = row["ending_deferred_units"]
+    st.subheader("Unconstrained requirement versus feasible output")
+    st.write(
+        "The requirement says what should be produced. The feasible plan says what "
+        "the work centers can build. Their remaining difference is deferred; it is "
+        "not silently removed from the plan."
+    )
+    requirement, feasible, deferred = st.columns(3)
+    requirement.metric(
+        "Unconstrained production requirement",
+        f"{working.summary.net_production_requirement_units:,}",
+    )
+    feasible.metric(
+        "Capacity-feasible production",
+        f"{sum(row['planned_production_units'] for row in working.capacity_plan.products):,}",
+    )
+    deferred.metric(
+        "Deferred at end of horizon",
+        f"{sum(final_deferred.values()):,}",
+    )
+
+    st.subheader("Where each result comes from")
+    st.dataframe(
+        [
+            {
+                "step": "Demand signal",
+                "main input": "Fixed FRED PERMIT history",
+                "result": "Fictional monthly product demand",
+            },
+            {
+                "step": "Inventory",
+                "main input": "Forecast demand and finished-goods stock",
+                "result": "Net production requirement",
+            },
+            {
+                "step": "Materials",
+                "main input": "Production requirement and bill of materials",
+                "result": "Purchase receipts and release timing",
+            },
+            {
+                "step": "Capacity",
+                "main input": "Production requirement and available hours",
+                "result": "Feasible production and deferred units",
+            },
+        ],
+        hide_index=True,
+        width="stretch",
+    )
+
+    st.subheader("Download your working scenario")
+    downloads = st.columns(5)
+    downloads[0].download_button(
+        "Demand CSV",
+        records_csv(working.demand_records),
+        "working-demand.csv",
+        "text/csv",
+    )
+    downloads[1].download_button(
+        "Inventory CSV",
+        records_csv(working.inventory_records),
+        "working-inventory.csv",
+        "text/csv",
+    )
+    downloads[2].download_button(
+        "Materials CSV",
+        records_csv(working.procurement_records),
+        "working-materials.csv",
+        "text/csv",
+    )
+    downloads[3].download_button(
+        "Capacity CSV",
+        records_csv(working.capacity_plan.work_centers),
+        "working-capacity-centers.csv",
+        "text/csv",
+    )
+    downloads[4].download_button(
+        "Production CSV",
+        records_csv(working.capacity_plan.products),
+        "working-capacity-products.csv",
+        "text/csv",
+    )
+
+
+def _summary_comparison_rows(
+    working: IntegratedPlan,
+    baseline: IntegratedPlan,
+) -> list[dict[str, str | int]]:
+    """Build learner-friendly baseline comparison rows."""
+
+    measures = (
+        (
+            "12-month forecast demand",
+            "forecast_demand_units",
+            "Expected finished-product demand across the plan horizon.",
+        ),
+        (
+            "Net production requirement",
+            "net_production_requirement_units",
+            "Units requested after finished-goods inventory and safety stock.",
+        ),
+        (
+            "Material purchase actions",
+            "material_purchase_actions",
+            "Component-months that require a planned purchase receipt.",
+        ),
+        (
+            "Past-due order releases",
+            "past_due_release_actions",
+            "Purchases whose recommended release month is before the plan origin.",
+        ),
+        (
+            "Overloaded work-center months",
+            "overloaded_work_center_months",
+            "Months where requested setup and runtime exceed effective hours.",
+        ),
+        (
+            "Ending deferred production",
+            "ending_deferred_production_units",
+            "Requested units still unbuilt at the end of the horizon.",
+        ),
+    )
+    rows = []
+    for label, field, meaning in measures:
+        baseline_value = getattr(baseline.summary, field)
+        working_value = getattr(working.summary, field)
+        rows.append(
+            {
+                "measure": label,
+                "baseline": baseline_value,
+                "working": working_value,
+                "difference": working_value - baseline_value,
+                "meaning": meaning,
+            }
+        )
+    return rows
+
+
+def _render_integrated_demand(
+    fred_records: list[ProcessedObservation],
+    plan: IntegratedPlan,
+) -> None:
+    """Explain the external signal and its fictional internal translation."""
+
+    st.header("1. Where does company demand come from?")
+    st.write(
+        "Federal Reserve Economic Data (FRED) building permits are an external "
+        "market signal, not customer orders. This project converts that national "
+        "pace into fictional company demand "
+        "using the assumptions shown below."
+    )
+    assumptions = plan.scenario.demand
+    st.dataframe(
+        [
+            {
+                "assumption": "Company market share",
+                "working value": f"{assumptions.market_share_percent:.2f}%",
+                "purpose": "Narrows the national market to the fictional company.",
+            },
+            {
+                "assumption": "Demand lag",
+                "working value": f"{DEFAULT_LAG_MONTHS} months",
+                "purpose": "Moves a permit signal to a later requested ship month.",
+            },
+            {
+                "assumption": "Cancellations",
+                "working value": "None",
+                "purpose": "Keeps this teaching translation deterministic.",
+            },
+        ],
+        hide_index=True,
+        width="stretch",
+    )
+    customer_choice = st.selectbox(
+        "Customer to explore",
+        ("All customers", *CUSTOMERS),
+    )
+    product_choice = st.selectbox(
+        "Product to explore in demand",
+        ("All products", *PRODUCTS),
+    )
+    selected = filter_demand(
+        plan.demand_records,
+        customer=None if customer_choice == "All customers" else customer_choice,
+        product_sku=None if product_choice == "All products" else product_choice,
+    )
+    summary = summarize_demand(selected)
+    source, periods, demand = st.columns(3)
+    source.metric("Months in the FRED source", len(fred_records))
+    periods.metric("Demand months displayed", len({row["period"] for row in selected}))
+    demand.metric("Fictional internal demand units", f"{summary.demand_units:,}")
+    st.subheader("External permit pace")
+    st.line_chart(
+        [
+            {"period": record["period"], "permit_saar": record["value"]}
+            for record in fred_records
+        ],
+        x="period",
+        y="permit_saar",
+    )
+    st.caption(
+        "SAAR means seasonally adjusted annual rate. It is an annualized pace, "
+        "not the number of permits issued during that single month."
+    )
+    st.subheader("Fictional monthly company demand")
+    st.line_chart(monthly_demand(selected), x="period", y="demand_units")
+    with st.expander("Inspect demand calculation records"):
+        st.dataframe(selected, hide_index=True, width="stretch")
+
+
+def _render_integrated_forecast(
+    fred_records: list[ProcessedObservation],
+    plan: IntegratedPlan,
+) -> None:
+    """Teach internal-history baselines and unknown external drivers together."""
+
+    st.header("2. What do we think will happen next?")
+    st.write(
+        "A forecast is an estimate made before the actual value is known. Start "
+        "with simple methods so every result has a clear comparison point."
+    )
+    _render_forecast_baselines(plan.demand_records)
+    st.divider()
+    _render_fred_informed_forecast(
+        fred_records,
+        plan.demand_records,
+        plan.scenario.demand,
+    )
+
+
+def _render_integrated_inventory(plan: IntegratedPlan) -> None:
+    """Explain how forecast demand and finished stock become production needs."""
+
+    st.header("3. How much finished product should we make?")
+    st.write(
+        "The inventory plan begins with forecast demand, subtracts finished goods "
+        "already available, and adds the selected safety-stock protection."
+    )
+    st.caption(
+        f"Working policy: {plan.scenario.finished_goods.safety_stock_percent:g}% "
+        "of the following month's forecast. Scheduled finished-goods receipts are zero."
+    )
+    summary = summarize_inventory_plan(plan.inventory_records)
+    demand, production, ending = st.columns(3)
+    demand.metric("12-month forecast demand", f"{summary.forecast_demand_units:,}")
+    production.metric(
+        "Unconstrained production requirement",
+        f"{summary.net_production_requirement_units:,}",
+        help="What should be produced before checking factory capacity.",
+    )
+    ending.metric(
+        "Final projected finished inventory",
+        f"{summary.final_projected_inventory_units:,}",
+    )
+    product_sku = st.selectbox(
+        "Finished product to explore",
+        tuple(PRODUCTS),
+        format_func=lambda value: f"{value} - {PRODUCTS[value]}",
+    )
+    selected = filter_inventory_plan(plan.inventory_records, product_sku=product_sku)
+    st.line_chart(
+        [
+            {
+                "period": row["period"],
+                "forecast_demand": row["forecast_demand_units"],
+                "production_requirement": row[
+                    "net_production_requirement_units"
+                ],
+                "projected_ending_inventory": row[
+                    "projected_ending_inventory_units"
+                ],
+            }
+            for row in selected
+        ],
+        x="period",
+        y=(
+            "forecast_demand",
+            "production_requirement",
+            "projected_ending_inventory",
+        ),
+    )
+    st.dataframe(selected, hide_index=True, width="stretch")
+    example = selected[0]
+    with st.expander("Show the first month's inventory calculation"):
+        st.write(
+            f"{example['forecast_demand_units']} forecast units + "
+            f"{example['safety_stock_target_units']} safety-stock units - "
+            f"{example['inventory_position_units']} available units = "
+            f"{example['net_production_requirement_units']} units to produce."
+        )
+
+
+def _render_integrated_procurement(plan: IntegratedPlan) -> None:
+    """Explain BOM requirements, suppliers, and purchase-release timing."""
+
+    st.header("4. What materials should we purchase, and when?")
+    st.write(
+        "The bill of materials translates finished-product production into glass, "
+        "vinyl, slabs, frames, and hardware. Inventory and open supplier orders "
+        "reduce what still needs to be purchased."
+    )
+    with st.expander("Start with the bill of materials"):
+        st.dataframe(
+            [
+                {
+                    "finished product": product_sku,
+                    "component": COMPONENTS[component_sku].name,
+                    "quantity per product": quantity,
+                    "unit": COMPONENTS[component_sku].unit,
+                }
+                for product_sku, entries in BOM.items()
+                for component_sku, quantity in entries
+            ],
+            hide_index=True,
+            width="stretch",
+        )
+    summary = summarize_procurement_plan(plan.procurement_records)
+    actions, past_due, risk = st.columns(3)
+    actions.metric("Material purchase actions", summary.purchase_action_count)
+    past_due.metric("Past-due order releases", summary.past_due_action_count)
+    risk.metric("Supplier receipts reduced for risk", summary.receipt_at_risk_count)
+
+    st.subheader("How reliably have the fictional suppliers delivered?")
+    st.caption(
+        "On-time-in-full (OTIF) means a delivery arrived by its promise date and "
+        "included the complete ordered quantity."
+    )
+    st.dataframe(
+        [
+            {
+                "component": item.component_sku,
+                "supplier": item.supplier_name,
+                "deliveries": item.delivery_count,
+                "average lead months": item.average_actual_lead_months,
+                "on-time rate": item.on_time_rate,
+                "fill rate": item.fill_rate,
+                "OTIF rate": item.otif_rate,
+            }
+            for item in plan.procurement_inputs.supplier_performance
+        ],
+        hide_index=True,
+        width="stretch",
+    )
+    comparisons = compare_safety_stock(
+        plan.procurement_inputs.material_requirements,
+        plan.procurement_inputs.material_error_stats,
+        plan.procurement_inputs.supplier_performance,
+        percentage=plan.scenario.procurement.percentage,
+        service_level=plan.scenario.procurement.service_level,
+    )
+    with st.expander("Compare material safety-stock methods"):
+        st.dataframe(
+            [
+                {
+                    "component": item.component_sku,
+                    "none": item.none_target_units,
+                    "percentage": item.percentage_target_units,
+                    "statistical": item.statistical_target_units,
+                }
+                for item in comparisons
+            ],
+            hide_index=True,
+            width="stretch",
+        )
+
+    component_sku = st.selectbox(
+        "Purchased component to explore",
+        tuple(COMPONENTS),
+        format_func=lambda value: f"{value} - {COMPONENTS[value].name}",
+    )
+    selected = filter_procurement_plan(
+        plan.procurement_records,
+        component_sku=component_sku,
+    )
+    st.line_chart(
+        [
+            {
+                "period": row["period"],
+                "gross_material_need": row["gross_requirement_units"],
+                "planned_purchase_receipt": row["net_purchase_receipt_units"],
+                "projected_ending_material": row[
+                    "projected_ending_inventory_units"
+                ],
+            }
+            for row in selected
+        ],
+        x="period",
+        y=(
+            "gross_material_need",
+            "planned_purchase_receipt",
+            "projected_ending_material",
+        ),
+    )
+    st.dataframe(selected, hide_index=True, width="stretch")
+
+
+def _render_integrated_capacity(plan: IntegratedPlan) -> None:
+    """Explain capacity feasibility and deferred production without jargon."""
+
+    st.header("5. What can the factory actually build?")
+    st.write(
+        "A production requirement is a request. Capacity checks whether the "
+        "available work-center hours can satisfy it. Units that do not fit are "
+        "carried forward as deferred production."
+    )
+    summary = summarize_capacity_plan(plan.capacity_plan)
+    overloads, deferred, maximum = st.columns(3)
+    overloads.metric(
+        "Overloaded work-center months",
+        summary.overloaded_work_center_months,
+    )
+    deferred.metric(
+        "Production still deferred at the end",
+        f"{summary.ending_deferred_units:,}",
+    )
+    maximum.metric(
+        "Highest required utilization",
+        f"{summary.maximum_required_utilization_percent:.1f}%",
+        help="100% means the requested setup and runtime exactly use available hours.",
+    )
+    work_center_id = st.selectbox(
+        "Work center to explore",
+        tuple(WORK_CENTERS),
+        format_func=lambda value: WORK_CENTERS[value],
+    )
+    centers = filter_work_centers(
+        plan.capacity_plan.work_centers,
+        work_center_id=work_center_id,
+    )
+    st.subheader("Hours requested compared with hours available")
+    st.line_chart(
+        [
+            {
+                "period": row["period"],
+                "hours_requested": row["required_hours"],
+                "hours_available": row["effective_capacity_hours"],
+            }
+            for row in centers
+        ],
+        x="period",
+        y=("hours_requested", "hours_available"),
+    )
+    st.dataframe(centers, hide_index=True, width="stretch")
+    eligible = tuple(
+        product_sku
+        for product_sku in PRODUCTS
+        if any(
+            row["product_sku"] == product_sku
+            and row["work_center_id"] == work_center_id
+            for row in plan.capacity_plan.products
+        )
+    )
+    product_sku = st.selectbox(
+        "Capacity-constrained product to explore",
+        eligible,
+        format_func=lambda value: f"{value} - {PRODUCTS[value]}",
+    )
+    products = filter_capacity_products(
+        plan.capacity_plan.products,
+        product_sku=product_sku,
+    )
+    st.subheader("Units requested, built, and deferred")
+    st.line_chart(
+        [
+            {
+                "period": row["period"],
+                "units_requested": row["total_requested_units"],
+                "units_planned": row["planned_production_units"],
+                "units_deferred": row["ending_deferred_units"],
+            }
+            for row in products
+        ],
+        x="period",
+        y=("units_requested", "units_planned", "units_deferred"),
+    )
+    st.dataframe(products, hide_index=True, width="stretch")
+    st.warning(
+        "This capacity-feasible view does not silently rewrite the earlier inventory "
+        "or purchasing requirements. Keeping both views visible helps you see the "
+        "trade-off instead of hiding it."
+    )
 
 
 def _render_internal_demand() -> tuple[

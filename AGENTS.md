@@ -6,11 +6,12 @@ Build an educational supply-chain planning tool in small, reviewable increments.
 
 ## Current milestone boundary
 
-Milestone 8 is implemented as defined in
-`docs/specs/milestone-08-capacity-planning.md`. Do not begin Milestone 9 until
-the dashboard audience and the decisions each integrated workflow view should
-support have been reviewed and approved. Do not add optimization, a database,
-or deployment.
+Milestone 9 is implemented as defined in
+`docs/specs/milestone-09-integrated-dashboard.md`. The primary learner is
+assumed to have no prior planning knowledge. Do not begin Milestone 10 until
+the maintained definition list, textbook citation, and tooltip/popover/guide
+placement rules have been reviewed and approved. Do not add optimization, a
+database, or deployment.
 
 ## Architecture
 
@@ -26,6 +27,8 @@ or deployment.
 - `procurement.py` calculates material safety stock, purchases, and release timing.
 - `planning_workflow.py` coordinates forecast-to-procurement planning inputs.
 - `capacity.py` allocates finite work-center hours and rolls deferred production.
+- `scenario.py` owns the shared learner-adjustable planning assumptions.
+- `integrated_planning.py` builds comparable end-to-end dashboard plans and downloads.
 - `demand.py` converts the fixed FRED snapshot into a transparent demand scenario.
 - `forecasting.py` calculates and evaluates explainable demand baselines.
 - `workflow.py` coordinates shared fetch and transformation logic for both interfaces.

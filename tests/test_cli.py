@@ -12,7 +12,7 @@ def test_installed_command_smoke_check_does_not_call_fred(
 
     captured = capsys.readouterr()
     assert exit_code == 0
-    assert "Supply Chain Planning Lab 0.9.0" in captured.out
+    assert "Supply Chain Planning Lab 0.10.0" in captured.out
     assert "FRED_API_KEY: not configured" in captured.out
 
 

@@ -217,6 +217,10 @@ teaching plan rather than detailed sequencing or optimization.
 
 ## Milestone 9: Teaching dashboard integration
 
+**Status:** Implemented
+
+**Specification:** `docs/specs/milestone-09-integrated-dashboard.md`
+
 **Learning focus:** Communicating decisions and trade-offs
 
 Potential outcomes:
@@ -228,6 +232,14 @@ Potential outcomes:
 - Integrate the complete planning workflow into a consistent local interface.
 
 Decision gate: define the dashboard audience and the decisions each view should support.
+
+The implemented dashboard assumes the primary learner has no prior planning
+knowledge. One session-only working scenario controls demand, inventory,
+materials, supplier risk, and capacity assumptions. A Start Here overview
+compares the working scenario with approved defaults at the same forecast
+origin, highlights exceptions, distinguishes unconstrained requirements from
+capacity-feasible output, explains source lineage, and provides in-memory CSV
+downloads. Detailed views remain available in the order of the planning story.
 
 ## Milestone 10: Guided explanations, glossary, and handoff
 
