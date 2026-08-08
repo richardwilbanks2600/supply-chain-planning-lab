@@ -2,13 +2,13 @@
 
 ## Status
 
-Revised scenario approved on 2026-08-07.
+Revised expected-versus-realized demand model approved on 2026-08-07.
 
 ## Goal
 
-Teach how an external market indicator can drive a fictional internal-demand
-scenario through visible business assumptions without presenting the
-assumptions as observed facts or a forecast.
+Teach how an external market indicator can anchor a fictional internal-demand
+scenario without making company demand a perfect copy of FRED. The model keeps
+expected demand, static company variation, and realized demand visibly separate.
 
 ## Approved FRED source
 
@@ -69,18 +69,43 @@ The default scenario assumptions are:
   - Building Remodeler: `20%`
 - Cancellations: none
 
+The project also packages 933 fixed product-month realization-factor records
+covering April 2000 through February 2026. The factors were generated once by
+`scripts/generate_demand_realization_factors.py` with seed `7970`, reviewed, and
+committed. The dashboard loads the committed CSV; it never generates random
+variation at runtime.
+
+Each realization factor combines:
+
+- a monthly company-variation factor;
+- a mild product-seasonal factor;
+- a small product-specific factor; and
+- an occasional unusual-month factor.
+
+Every final factor is between `0.75` and `1.25`. More than 95% are between
+`0.85` and `1.15`, so most realized demand stays within 15% of the FRED-driven
+expectation while occasional months approach 25% above or below it.
+
+The displayed demand history uses 927 factor rows through December 2025. Six
+additional rows for January-February 2026 support the forward inventory and
+safety-stock calculations that need months just beyond the visible history.
+
 The calculation is:
 
 ```text
 monthly housing pace = lagged FRED value x 1,000 / 12
 addressable homes = monthly housing pace x company market-share percentage
-product demand = round(addressable homes x product units per home)
-customer demand = whole-unit allocation of product demand to customers
+FRED-driven expected product demand
+    = round(addressable homes x product units per home)
+realized product demand
+    = round(expected product demand x static realization factor)
+customer demand = whole-unit allocation of realized product demand to customers
 ```
 
 The dashboard exposes company market share, customer allocation, and each
-product's units per home as sliders. Slider changes recalculate the scenario
-deterministically from the same FRED snapshot; no random demand is generated.
+product's units per home as sliders. Slider changes recalculate expectation and
+scale realized demand with the same committed factors. No factor changes when
+the dashboard reruns.
 
 Because a three-month lag is used and the FRED snapshot begins in January
 2000, derived demand begins in April 2000. Calculations stop at December 2025,
@@ -93,13 +118,19 @@ Given `PERMIT = 1,500.0`, the default assumptions produce:
 ```text
 monthly housing pace = 1,500 x 1,000 / 12 = 125,000
 addressable homes = 125,000 x 0.10% = 125
-24 x 36 window demand = 125 x 6 = 750 units
-36 x 48 window demand = 125 x 4 = 500 units
-exterior-door demand = 125 x 1 = 125 units
-total product demand = 1,375 units
+24 x 36 window expected demand = 125 x 6 = 750 units
+36 x 48 window expected demand = 125 x 4 = 500 units
+exterior-door expected demand = 125 x 1 = 125 units
+total expected product demand = 1,375 units
+
+April 2000 realization factors:
+24 x 36 window = 1.0582; realized demand = round(750 x 1.0582) = 794
+36 x 48 window = 1.0617; realized demand = round(500 x 1.0617) = 531
+exterior door = 1.0529; realized demand = round(125 x 1.0529) = 132
+total realized demand = 1,457 units
 ```
 
-The 750 small-window units allocate as `375`, `225`, and `150` units across
+The 794 realized small-window units allocate as `397`, `238`, and `159` across
 the three customers. When percentages produce fractional units, the largest
 fractional remainders receive the remaining whole units so customer demand
 always equals total product demand.
@@ -113,6 +144,9 @@ Every derived record retains:
 - Company market-share assumption
 - Customer and allocation percentage
 - Product, product attachment rate, and calculated finished units
+- FRED-driven expected customer units
+- Company, seasonal, product, and unusual-month factor components
+- Final realization factor, variation type, and realized customer units
 
 The lineage makes each value manually traceable to FRED plus approved
 assumptions. The model is fictional and does not establish that national
@@ -121,14 +155,15 @@ permits cause this company's orders.
 ## In scope
 
 - Fixed, validated FRED `PERMIT` snapshot for 2000-2025
-- Transparent pace, lag, market-share, product, and allocation calculations
+- Fixed, validated demand-realization factors for every product-month
+- Transparent expectation, variation, realization, and allocation calculations
 - Interactive dashboard scenario sliders
 - Default-scenario CLI inspection and filtering
 - Offline tests and learner documentation
 
 ## Out of scope
 
-- Cancellations, random variation, or customer-specific events
+- Cancellations, runtime randomness, or customer-specific events
 - Forecasting, forecast performance, or causal estimation
 - Inventory, backlog, shipment, material, capacity, or scheduling calculations
 - Optimization, databases, or deployment
@@ -138,10 +173,12 @@ permits cause this company's orders.
 1. The packaged FRED snapshot contains all 312 unique months from January 2000
    through December 2025 and requires no runtime network access.
 2. The default model produces 309 demand months using a visible three-month
-   lag and retains source lineage on every record.
+   lag and retains source and realization-factor lineage on every record.
 3. Company market share and units-per-home values are finite and nonnegative.
 4. Customer allocations cover all customers and total exactly 100 percent.
-5. Customer whole-unit allocations preserve each calculated product total.
-6. Dashboard sliders recalculate deterministic values from the fixed snapshot.
-7. No cancellation, forecast, inventory, or production rules are introduced.
-8. Tests use packaged or temporary data and never contact FRED.
+5. The factor dataset covers all 933 product-month combinations, keeps every
+   factor between 0.75 and 1.25, and is never regenerated at runtime.
+6. Customer whole-unit allocations preserve each realized product total.
+7. Dashboard sliders recalculate repeatable values from the fixed inputs.
+8. No cancellation, forecast, inventory, or production rules are introduced.
+9. Tests use packaged or temporary data and never contact FRED.

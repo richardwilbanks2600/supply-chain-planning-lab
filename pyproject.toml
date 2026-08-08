@@ -1,6 +1,6 @@
 [project]
 name = "supply-chain-planning-lab"
-version = "0.10.0"
+version = "0.11.0"
 description = "An educational FRED-driven demand and supply-chain planning tool."
 readme = "README.md"
 license = "MIT"

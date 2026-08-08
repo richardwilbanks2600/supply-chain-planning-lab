@@ -46,10 +46,10 @@ filled.
 ## Internal demand output
 
 Grain: one requested ship month, customer, and product. Provenance: fixed FRED
-snapshot plus learner-visible `DemandAssumptions`. The calculation converts
-SAAR thousands to monthly housing pace, applies the three-month lag, company
-market share, units per home, and customer allocation, then allocates whole
-units deterministically. Cancellations are zero.
+snapshot, learner-visible `DemandAssumptions`, and the fixed realization-factor
+dataset. The calculation converts SAAR thousands to expected demand, applies a
+product-month realization factor, then allocates realized whole units with the
+same repeatable rounding rule. Cancellations are zero.
 
 | Field | Type | Unit / allowable values | Meaning |
 |---|---|---|---|
@@ -59,21 +59,40 @@ units deterministically. Cancellations are zero.
 | `monthly_housing_pace` | number | homes/month | `(FRED value * 1000) / 12`. This is a rate conversion, not observed monthly permits. |
 | `company_market_share_percent` | number | 0-100 percent | Fictional share of addressable housing pace. |
 | `customer` | string | approved customer name | Fictional customer receiving allocated demand. |
-| `customer_type` | string | Customer, Distributor, Remodeler | Customer segment label. |
+| `customer_type` | string | `builder`, `distributor`, `remodeler` | Customer segment label. |
 | `customer_allocation_percent` | number | percent; all customers total 100 | Customer share of product demand. |
 | `product_sku` | string | `WIN-2436`, `WIN-3648`, `DOOR-3680` | Fictional product identifier. |
 | `product_name` | string | approved product name | Learner-facing product label. |
 | `units_per_home` | number | product units/home | Fictional product attachment rate. |
-| `demand_units` | integer | product units | Deterministically rounded whole-unit internal demand. |
-| `unit` | string | `units` | Unit label for `demand_units`. |
+| `fred_expected_demand_units` | integer | product units | Customer share of demand implied by FRED and visible assumptions before static variation. |
+| `company_variation_factor` | number | positive multiplier | Monthly company-wide component of the static realization factor. |
+| `product_seasonal_factor` | number | positive multiplier | Mild recurring month-of-year component for the product. |
+| `product_variation_factor` | number | positive multiplier | Small fixed product-month component. |
+| `unusual_event_factor` | number | positive multiplier | Usually 1.0; occasional fixed unusual-month adjustment. |
+| `realization_factor` | number | 0.75-1.25 | Final committed multiplier applied to expected product demand. |
+| `variation_type` | string | `typical`, `unusual` | Identifies whether an unusual-month adjustment is present. |
+| `demand_units` | integer | product units | Customer share of realized fictional demand after static variation. |
+| `unit` | string | `finished_units` | Unit label for expected and realized demand. |
+
+### Demand realization factors
+
+File: `src/supply_chain_planning_lab/resources/demand_realization_factors.csv`
+
+Provenance: fixed fictional teaching data generated once with seed `7970` by
+`scripts/generate_demand_realization_factors.py`. Runtime planning reads the
+committed CSV and never regenerates it. Grain: requested ship month and product.
+The 933 rows cover April 2000 through February 2026 for all three products.
+The final six rows support forward inventory and safety-stock calculations;
+the displayed realized-demand history still ends in December 2025.
 
 ## FRED-informed forecast output
 
 Grain: forecast origin, demand horizon, and product. For horizons 1-3, the
 three-month lag means the FRED driver is already known at the origin. Horizons
 4-12 carry the latest FRED value at the origin forward. Error is
-`actual - forecast`; a positive value means underforecasting. This uses revised
-history, not historical FRED vintages.
+`realized demand - forecast`; a positive value means underforecasting. A known
+FRED driver can still have demand error because the realization factor is not
+used by the forecast. This uses revised history, not historical FRED vintages.
 
 | Field | Type | Unit / allowable values | Meaning |
 |---|---|---|---|
@@ -87,9 +106,9 @@ history, not historical FRED vintages.
 | `driver_value_used_saar_thousands` | number | thousands of units SAAR | Known or carried-forward FRED driver used. |
 | `driver_error_saar_thousands` | number | thousands of units SAAR | Actual driver minus value used. |
 | `product_sku`, `product_name` | string | approved product | Product identity. |
-| `actual_demand_units` | integer | product units | Demand generated from the actual driver. |
-| `forecast_demand_units` | integer | product units | Demand generated from the driver value available at the origin. |
-| `error_units` | integer | product units | Actual demand minus forecast demand. |
+| `actual_demand_units` | integer | product units | Realized fictional demand from the static demand dataset. |
+| `forecast_demand_units` | integer | product units | FRED-driven expected demand from the driver available at the origin. |
+| `error_units` | integer | product units | Realized demand minus forecast demand. |
 | `absolute_error_units` | integer | product units | Absolute value of `error_units`. |
 
 ## Finished-goods inventory output

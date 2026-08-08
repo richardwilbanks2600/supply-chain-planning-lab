@@ -10,3 +10,4 @@ __pycache__/
 htmlcov/
 .ruff_cache/
 .uv-cache/
+private/

@@ -6,12 +6,12 @@ Build an educational supply-chain planning tool in small, reviewable increments.
 
 ## Current milestone boundary
 
-Milestone 9 is implemented as defined in
-`docs/specs/milestone-09-integrated-dashboard.md`. The primary learner is
-assumed to have no prior planning knowledge. Do not begin Milestone 10 until
-the maintained definition list, textbook citation, and tooltip/popover/guide
-placement rules have been reviewed and approved. Do not add optimization, a
-database, or deployment.
+Milestone 10 is implemented as defined in
+`docs/specs/milestone-10-learning-guide.md`. The primary learner is assumed to
+have no prior planning knowledge. `learning.py` is the authoritative registry
+for dashboard definitions and forecast-method lessons. Do not add another
+milestone until its learning objective and scope have been reviewed and added
+to the roadmap. Do not add optimization, a database, or deployment.
 
 ## Architecture
 
@@ -29,7 +29,9 @@ database, or deployment.
 - `capacity.py` allocates finite work-center hours and rolls deferred production.
 - `scenario.py` owns the shared learner-adjustable planning assumptions.
 - `integrated_planning.py` builds comparable end-to-end dashboard plans and downloads.
-- `demand.py` converts the fixed FRED snapshot into a transparent demand scenario.
+- `learning.py` owns maintained definitions, forecast-method lessons, and further-study text.
+- `demand.py` separates FRED-driven expectation from realized demand using the
+  committed static product-month factor resource.
 - `forecasting.py` calculates and evaluates explainable demand baselines.
 - `workflow.py` coordinates shared fetch and transformation logic for both interfaces.
 - `logging_config.py` owns optional console and file logging.
@@ -64,4 +66,6 @@ uv run pytest
 - Keep descriptive measures separate from forecasts and planning assumptions.
 - Never print, log, fixture, or commit an API key.
 - Keep `.env`, `.venv/`, and generated `data/` files ignored.
+- Never generate demand realization factors at runtime; regeneration is an
+  explicit maintenance action through `scripts/generate_demand_realization_factors.py`.
 - Before adding planning logic, document the concept, assumptions, and a manually verifiable example.

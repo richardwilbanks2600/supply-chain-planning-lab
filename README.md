@@ -1,9 +1,10 @@
 # Supply Chain Planning Lab
 
 Supply Chain Planning Lab is an educational Python project that translates a
-fixed FRED construction-market history into fictional internal demand through
-visible business assumptions. It offers both a repeatable command-line
-workflow and an interactive local Streamlit dashboard.
+fixed FRED construction-market history into expected demand through visible
+business assumptions, then applies committed static variation to create
+realized fictional demand. It offers both a repeatable command-line workflow
+and an interactive local Streamlit dashboard.
 
 It is designed for students and first-time supply-chain learners who want to
 see how an external demand signal flows through forecasting, inventory,
@@ -27,7 +28,8 @@ orders, company demand, or a forecast.
 - Validate, filter, list, and transparently describe processed CSV records.
 - Detect duplicate periods, missing calendar months, and unexpected row order.
 - Load a fixed FRED `PERMIT` snapshot covering 2000 through 2025.
-- Translate market pace into internal demand with visible fictional assumptions.
+- Translate market pace into expected demand with visible fictional assumptions.
+- Apply fixed, inspectable product-month factors to realized fictional demand.
 - Filter internal demand by month, customer, and product without an API key.
 - Compare previous-month, seasonal-naive, and trailing-average demand forecasts.
 - Evaluate forecast magnitude and direction with MAE and bias.
@@ -185,7 +187,7 @@ observations. These measures describe historical values; they are not a trend
 classification or forecast. The exact rules and a manual example are in
 [`docs/specs/milestone-02-data-inspection.md`](docs/specs/milestone-02-data-inspection.md).
 
-### FRED-driven internal demand
+### FRED-anchored expected and realized demand
 
 Inspect the default FRED-driven demand scenario without an API key or network
 call:
@@ -207,14 +209,21 @@ uv run planning-lab demand \
 
 The version-controlled FRED snapshot contains all 312 months from January 2000
 through December 2025. A transparent model converts the seasonally adjusted
-annual pace into a monthly pace, applies a three-month lag and fictional
-company market share, multiplies by product units per home, and allocates whole
-units among the three customers. Cancellations are currently zero.
+annual pace into FRED-driven expected product demand. A committed static factor
+dataset then adds company, seasonal, product, and occasional unusual-month
+variation to create realized fictional demand. Cancellations are currently zero.
+
+The 933 product-month factors are fixed between `0.75` and `1.25`; more than
+95% are within 15% of expectation. Of these, 927 support the displayed demand
+history through December 2025 and six support the two extra months needed by
+the forward inventory calculation. They were generated once with seed `7970`
+and are never regenerated when the CLI or dashboard runs.
 
 The default scenario uses a `0.10%` company share, product attachment rates of
 six small windows, four large windows, and one exterior door per addressable
 home, and customer allocations of `50%`, `30%`, and `20%`. Every derived row
-retains the FRED source month and calculation assumptions.
+retains the FRED source month, expected demand, factor components, final
+realization factor, and realized demand.
 
 The approved meaning, manual example, data-quality rules, and limitations are
 in
@@ -243,7 +252,7 @@ uv run planning-lab forecast \
 Forecasts are calculated at monthly product-total level across customers. The
 approved common evaluation period is January 2020 through December 2025. The
 command reports mean absolute error (MAE) and bias using
-`error = actual - forecast`, so positive bias means underforecasting.
+`error = realized demand - forecast`, so positive bias means underforecasting.
 
 The exact methods, manual example, error definitions, and limitations are in
 [`docs/specs/milestone-04-baseline-forecasting.md`](docs/specs/milestone-04-baseline-forecasting.md).
@@ -269,9 +278,10 @@ uv run planning-lab fred-forecast \
 Because permits lead internal demand by three months, demand horizons 1-3 use
 FRED values already known at the forecast origin. Demand horizons 4-12 require
 unknown future permit values; the approved baseline carries the origin's most
-recent FRED value forward. The command reports MAE and bias by driver status
-and horizon, then preserves forecast-origin, driver-period, and product lineage
-in each detail row.
+recent FRED value forward. Known-driver horizons can still have error because
+the forecast does not know future company-specific realization factors. The
+command reports MAE and bias by driver status and horizon, then preserves
+forecast-origin, driver-period, and product lineage in each detail row.
 
 This is a revised-history teaching backtest. It uses one fixed current FRED
 snapshot and does not reconstruct historical FRED vintages or publication
@@ -419,18 +429,28 @@ the dashboard:
    origin and inspect purchasing, supplier, or capacity exceptions.
 4. Follow **Demand signal**, **Forecast**, **Inventory**, **Materials and
    procurement**, and **Capacity** in learning order.
-5. Keep unconstrained requirements separate from capacity-feasible output and
+5. Use the nearby **What does this mean?** controls for formulas and immediate
+   definitions, or search the complete **Learning Guide** by term or topic.
+6. Compare 2-, 3-, and 6-month simple moving averages with weighted and simple
+   exponential smoothing in the guide; only the 3-month simple average is an
+   implemented planning baseline.
+7. Keep unconstrained requirements separate from capacity-feasible output and
    inspect deferred production instead of hiding it.
-6. Download current planning records from the Overview or reset all assumptions
+8. Download current planning records from the Overview or reset all assumptions
    to approved defaults.
-7. Open **Source data** to work with live FRED data separately.
-8. Configure `FRED_API_KEY`, choose a first observation date, and select
+9. Open **Source data** to work with live FRED data separately.
+10. Configure `FRED_API_KEY`, choose a first observation date, and select
    **Load validated FRED data** for the external view.
-9. Review its descriptive measures, trend chart, trusted rows, and downloads.
+11. Review its descriptive measures, trend chart, trusted rows, and downloads.
+
+The Learning Guide maintains plain-language definitions, formulas, small
+examples, and common interpretation mistakes for the complete planning story.
+Its Further Study section names *Operations and Supply Chain Management, 7th
+Edition* for learners who want deeper coverage.
 
 The dashboard calls the same calculation modules used by the CLI. Its shared
-scenario is session-only, deterministic, and resettable; no random demand is
-generated and no scenario database is used. The baseline uses approved default
+scenario is session-only, repeatable, and resettable; no random values are
+generated at runtime and no scenario database is used. The baseline uses approved default
 assumptions at the working scenario's selected forecast origin.
 
 The dashboard runs locally for this project. Deployment is not required.
@@ -553,6 +573,8 @@ Neither tool is needed to run the app.
 |-- reports/
 |   |-- capacity-analysis.qmd  # authoritative reproducible report
 |   `-- capacity-analysis.pdf  # rendered report artifact
+|-- scripts/
+|   `-- generate_demand_realization_factors.py # explicit factor maintenance
 |-- src/supply_chain_planning_lab/
 |   |-- api.py                 # FRED HTTP boundary
 |   |-- cli.py                 # command-line interface
@@ -561,6 +583,7 @@ Neither tool is needed to run the app.
 |   |-- forecasting.py         # baseline forecasts and performance measures
 |   |-- driver_forecasting.py  # rolling-origin FRED-informed forecasts
 |   |-- inventory.py           # inventory and net production requirements
+|   |-- learning.py            # glossary and learner teaching content
 |   |-- materials.py           # component catalog, BOM, and supplier history
 |   |-- procurement.py         # material safety stock and purchasing logic
 |   |-- planning_workflow.py   # forecast-to-procurement coordination
@@ -575,6 +598,7 @@ Neither tool is needed to run the app.
 |   |-- transform.py           # trusted project-record transformation
 |   |-- workflow.py            # logic shared by CLI and dashboard
 |   `-- resources/
+|       |-- demand_realization_factors.csv # fixed fictional demand variation
 |       |-- fred_permit_2000_2025.csv # fixed FRED source snapshot
 |       `-- supplier_delivery_history.csv # fixed fictional supplier history
 |-- tests/

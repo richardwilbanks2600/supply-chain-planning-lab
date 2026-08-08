@@ -11,7 +11,7 @@ from .demand import (
     PRODUCTS,
     DemandAssumptions,
     DemandRecord,
-    calculate_product_demand,
+    calculate_expected_product_demand,
 )
 from .forecasting import aggregate_product_demand
 from .transform import ProcessedObservation
@@ -114,14 +114,14 @@ def calculate_driver_forecasts(
             driver_value_used = (
                 actual_driver if driver_status == "known" else origin_driver
             )
-            forecast_products = calculate_product_demand(
+            forecast_products = calculate_expected_product_demand(
                 driver_value_used, assumptions
             )
             for product_sku, product_name in PRODUCTS.items():
                 actual_units = actual_demand.get((demand_period, product_sku))
                 if actual_units is None:
                     raise DriverForecastError(
-                        f"Actual demand for {demand_period}/{product_sku} is unavailable."
+                        f"Realized demand for {demand_period}/{product_sku} is unavailable."
                     )
                 forecast_units = forecast_products[product_sku]
                 error = actual_units - forecast_units

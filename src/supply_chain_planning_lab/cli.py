@@ -270,7 +270,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     demand_parser = subparsers.add_parser(
         "demand",
-        help="Inspect the default FRED-driven internal-demand scenario.",
+        help="Inspect FRED-driven expectation and static realized demand.",
     )
     demand_parser.add_argument(
         "--start-period",
@@ -660,7 +660,7 @@ def run_demand(
     product_sku: str | None,
     limit: int | None,
 ) -> int:
-    """Calculate, filter, and display the default FRED-driven scenario."""
+    """Display FRED-driven expectation and static realized fictional demand."""
 
     try:
         records = load_default_demand()
@@ -679,13 +679,15 @@ def run_demand(
     summary = summarize_demand(selected)
     periods = sorted({record["period"] for record in selected})
     coverage = f"{periods[0]} through {periods[-1]}" if periods else "none"
-    print("Scenario: FRED-driven fictional internal demand")
+    print("Scenario: FRED-anchored expected and realized fictional demand")
     print("Source: fixed FRED PERMIT snapshot, 2000-01 through 2025-12")
+    print("Variation: fixed product-month factors, 2000-04 through 2026-02")
     print(f"Demand lag: {DEFAULT_LAG_MONTHS} months")
     print("Cancellations: none")
     print(f"Selected coverage: {coverage}")
     print(f"Selected records: {summary.record_count}")
-    print(f"Internal demand units: {summary.demand_units:,}")
+    print(f"FRED-driven expected units: {summary.fred_expected_demand_units:,}")
+    print(f"Realized fictional demand units: {summary.demand_units:,}")
 
     displayed = selected[:limit] if limit is not None else selected
     print(f"Listed records: {len(displayed)}")
@@ -725,7 +727,7 @@ def run_forecast(
 
     print("Forecast grain: monthly product demand across all customers")
     print(f"Evaluation period: {start_period} through {end_period}")
-    print("Error definition: actual - forecast; positive means underforecast")
+    print("Error definition: realized demand - forecast; positive means underforecast")
     print("Baseline comparison:")
     print("method,forecast_count,mae,bias")
     for summary in summaries:
@@ -741,7 +743,7 @@ def run_forecast(
 
     displayed = selected[:limit] if limit is not None else selected
     print(f"Listed forecasts: {len(displayed)}")
-    print("period,product_sku,actual_units,forecast_units,error_units")
+    print("period,product_sku,realized_units,forecast_units,error_units")
     for record in displayed:
         print(
             f"{record['period']},{record['product_sku']},"
@@ -783,9 +785,11 @@ def run_fred_forecast(
     print("Forecast origins: 2019-12 through 2024-12")
     print(f"Demand horizons: 1 through {MAX_FORECAST_HORIZON} months")
     print(f"Unknown-driver method: {DRIVER_METHOD_LABEL}")
-    print("Known drivers: demand horizons 1-3 use observed lagged FRED values")
+    print(
+        "Known drivers: horizons 1-3 know FRED but not future company variation"
+    )
     print("Forecasted drivers: demand horizons 4-12 use the origin FRED value")
-    print("Error definition: actual - forecast; positive means underforecast")
+    print("Error definition: realized demand - forecast; positive means underforecast")
     print("Revised-history note: this backtest uses one fixed current FRED snapshot")
     print("driver_status,forecast_count,mae,bias")
     for summary in (known, forecasted):
@@ -809,7 +813,7 @@ def run_fred_forecast(
     print(f"Listed forecasts: {len(displayed)}")
     print(
         "forecast_origin,horizon_months,demand_period,driver_period,"
-        "driver_status,product_sku,actual_units,forecast_units,error_units"
+        "driver_status,product_sku,realized_units,forecast_units,error_units"
     )
     for record in displayed:
         print(

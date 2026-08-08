@@ -7,7 +7,9 @@ from supply_chain_planning_lab.demand import (
     filter_demand,
     generate_demand,
     load_fred_snapshot,
+    load_realization_factors,
     monthly_demand,
+    monthly_demand_comparison,
     summarize_demand,
 )
 
@@ -39,6 +41,20 @@ def test_default_scenario_covers_april_2000_through_december_2025() -> None:
     assert records[-1]["period"] == "2025-12"
 
 
+def test_packaged_realization_factors_are_complete_static_and_bounded() -> None:
+    factors = load_realization_factors()
+
+    assert len(factors) == 933
+    assert len({(row["period"], row["product_sku"]) for row in factors}) == 933
+    assert factors[0]["period"] == "2000-04"
+    assert factors[-1]["period"] == "2026-02"
+    values = [row["realization_factor"] for row in factors]
+    assert min(values) == 0.75
+    assert max(values) == 1.25
+    assert sum(0.85 <= value <= 1.15 for value in values) / len(values) > 0.95
+    assert {row["variation_type"] for row in factors} == {"typical", "unusual"}
+
+
 def test_demand_calculation_preserves_source_lineage_and_product_totals() -> None:
     records = generate_demand(
         [_fred_record()],
@@ -50,12 +66,19 @@ def test_demand_calculation_preserves_source_lineage_and_product_totals() -> Non
     assert {record["period"] for record in records} == {"2000-04"}
     assert {record["fred_period"] for record in records} == {"2000-01"}
     assert {record["monthly_housing_pace"] for record in records} == {125_000.0}
-    assert summarize_demand(records).demand_units == 1_375
+    summary = summarize_demand(records)
+    assert summary.fred_expected_demand_units == 1_375
+    assert summary.demand_units == 1_457
     assert sum(
         record["demand_units"]
         for record in records
         if record["product_sku"] == "WIN-2436"
-    ) == 750
+    ) == 794
+    assert {
+        record["realization_factor"]
+        for record in records
+        if record["product_sku"] == "WIN-2436"
+    } == {1.0582}
 
 
 def test_slider_assumptions_change_demand_deterministically() -> None:
@@ -79,9 +102,10 @@ def test_slider_assumptions_change_demand_deterministically() -> None:
         [_fred_record()], doubled_share, demand_end_period="2000-04"
     )
 
-    assert summarize_demand(changed).demand_units == (
-        summarize_demand(baseline).demand_units * 2
-    )
+    assert abs(
+        summarize_demand(changed).demand_units
+        - summarize_demand(baseline).demand_units * 2
+    ) <= 3
 
 
 def test_demand_filters_and_monthly_totals_are_additive() -> None:
@@ -98,8 +122,20 @@ def test_demand_filters_and_monthly_totals_are_additive() -> None:
 
     assert [record["period"] for record in selected] == ["2000-04", "2000-05"]
     assert monthly_demand(selected) == [
-        {"period": "2000-04", "demand_units": 375},
-        {"period": "2000-05", "demand_units": 300},
+        {"period": "2000-04", "demand_units": 397},
+        {"period": "2000-05", "demand_units": 336},
+    ]
+    assert monthly_demand_comparison(selected) == [
+        {
+            "period": "2000-04",
+            "fred_expected_demand_units": 375,
+            "realized_demand_units": 397,
+        },
+        {
+            "period": "2000-05",
+            "fred_expected_demand_units": 300,
+            "realized_demand_units": 336,
+        },
     ]
 
 

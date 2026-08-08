@@ -2,7 +2,7 @@
 
 ## Status
 
-Approved on 2026-08-07.
+Implemented and revised for static realized demand on 2026-08-07.
 
 ## Goal
 
@@ -69,13 +69,15 @@ forecast addressable homes = 83,333.3 x 0.10% = 83.3333
 forecast small-window demand = round(83.3333 x 6) = 500
 ```
 
-The actual January driver of `1,100.0` produces:
+The actual January driver of `1,100.0` produces an expected value of 550. The
+committed April 2020 small-window realization factor is `0.9981`:
 
 ```text
 actual monthly pace = 1,100 x 1,000 / 12 = 91,666.7
 actual addressable homes = 91,666.7 x 0.10% = 91.6667
-actual small-window demand = round(91.6667 x 6) = 550
-error = actual - forecast = 550 - 500 = +50
+expected small-window demand = round(91.6667 x 6) = 550
+realized small-window demand = round(550 x 0.9981) = 549
+error = realized - forecast = 549 - 500 = +49
 ```
 
 A positive error means underforecasting, consistent with Milestone 4.
@@ -90,14 +92,15 @@ records:
 - 1,647 forecasted-driver records at horizons 4-12
 
 MAE and bias are reported separately for known and forecasted drivers and for
-each horizon. Known-driver records should have zero error because actual demand
-was generated from the same FRED value and approved translation rule.
+each horizon. Known-driver records can have nonzero error: the market driver is
+known, but the forecast does not know the future company realization factor.
 
 ## Interpretation limits
 
-Zero known-driver error demonstrates calculation consistency, not real-world
-predictive accuracy. The internal-demand history was constructed from FRED
-using the same structural rule.
+Known-driver error isolates the gap between FRED-driven expectation and static
+realized company demand. Forecasted-driver error combines that gap with error
+from forecasting the future FRED value. The realization factors are committed
+for reproducibility but are treated as unknown future residuals in the backtest.
 
 The backtest uses the fixed currently revised FRED snapshot. It prevents
 future-period leakage by date, but it does not reconstruct what each value
@@ -113,7 +116,7 @@ calendar are separately approved.
 - Known versus forecasted driver classification
 - Previous-month naive FRED forecast
 - Translation through the approved demand model
-- Product-level actual, forecast, error, MAE, and bias
+- Product-level realized demand, forecast, error, MAE, and bias
 - Source-period and driver-value lineage in CLI and dashboard views
 - Recalculation when demand assumptions change
 
@@ -131,9 +134,9 @@ calendar are separately approved.
 1. Each record identifies forecast origin, horizon, demand month, driver month,
    driver status, actual driver, and driver value used.
 2. Horizons 1-3 are always `known`; horizons 4-12 are always `forecasted`.
-3. Known-driver forecasts reproduce product demand with zero error.
-4. The horizon-4 manual example produces a 500-unit forecast, 550-unit actual,
-   and +50-unit error.
+3. Known-driver records use the exact observed FRED value but may have realized-demand error.
+4. The horizon-4 manual example produces a 500-unit forecast, 549-unit realized
+   demand value, and +49-unit error.
 5. The default backtest contains 2,196 records across 61 origins.
 6. MAE and bias use the definitions approved in Milestone 4.
 7. CLI and dashboard calculations share one driver-forecasting module.

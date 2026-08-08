@@ -29,7 +29,7 @@ class ForecastError(ValueError):
 
 
 class ProductDemandRecord(TypedDict):
-    """Monthly actual demand aggregated across customers for one product."""
+    """Monthly realized demand aggregated across customers for one product."""
 
     period: str
     product_sku: str
@@ -89,7 +89,7 @@ def calculate_forecasts(
     start_period: str = EVALUATION_START_PERIOD,
     end_period: str = EVALUATION_END_PERIOD,
 ) -> list[ForecastRecord]:
-    """Calculate one-month-ahead forecasts using prior actual demand only."""
+    """Calculate one-month-ahead forecasts using prior realized demand only."""
 
     if method not in METHOD_LABELS:
         raise ForecastError(f"Unknown forecast method {method!r}.")

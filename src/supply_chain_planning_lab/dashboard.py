@@ -37,7 +37,7 @@ from supply_chain_planning_lab.demand import (
     filter_demand,
     generate_demand,
     load_fred_snapshot,
-    monthly_demand,
+    monthly_demand_comparison,
     summarize_demand,
 )
 from supply_chain_planning_lab.forecasting import (
@@ -63,6 +63,15 @@ from supply_chain_planning_lab.inventory import (
     build_inventory_plan,
     filter_inventory_plan,
     summarize_inventory_plan,
+)
+from supply_chain_planning_lab.learning import (
+    FORECAST_METHOD_LESSONS,
+    TEXTBOOK_NAME,
+    TEXTBOOK_VERSION,
+    help_text,
+    learning_sections,
+    learning_term,
+    search_learning_terms,
 )
 from supply_chain_planning_lab.integrated_planning import (
     IntegratedPlan,
@@ -114,8 +123,9 @@ def main() -> None:
 
     st.title("Supply Chain Planning Lab")
     st.write(
-        "Learn how one market signal becomes demand, inventory, purchasing, and "
-        "a capacity-feasible production plan. No prior planning knowledge is assumed."
+        "Learn how one market signal becomes expected and realized demand, then "
+        "flows into inventory, purchasing, and a capacity-feasible production plan. "
+        "No prior planning knowledge is assumed."
     )
     try:
         fred_records = load_fred_snapshot()
@@ -137,6 +147,7 @@ def main() -> None:
         inventory_tab,
         procurement_tab,
         capacity_tab,
+        learning_tab,
         external_tab,
     ) = st.tabs(
         (
@@ -146,6 +157,7 @@ def main() -> None:
             "Inventory",
             "Materials and procurement",
             "Capacity",
+            "Learning Guide",
             "Source data",
         )
     )
@@ -161,8 +173,134 @@ def main() -> None:
         _render_integrated_procurement(working_plan)
     with capacity_tab:
         _render_integrated_capacity(working_plan)
+    with learning_tab:
+        _render_learning_guide()
     with external_tab:
         _render_external_indicator()
+
+
+def _render_term_popover(label: str, keys: tuple[str, ...]) -> None:
+    """Show focused definitions without interrupting the learner's workflow."""
+
+    with st.popover(label):
+        for key in keys:
+            item = learning_term(key)
+            st.markdown(f"**{item.term}**")
+            st.write(item.short)
+            if item.formula:
+                st.code(item.formula, language=None)
+        st.caption("Search the Learning Guide for examples and common mistakes.")
+
+
+def _render_learning_guide() -> None:
+    """Render the searchable glossary, forecast lessons, and further study."""
+
+    st.header("Learning Guide: planning terms in plain language")
+    st.write(
+        "Use this page whenever a dashboard word, unit, formula, or assumption is "
+        "unfamiliar. Search by a term such as `bias`, `safety stock`, `OTIF`, "
+        "`hours`, or `backlog`."
+    )
+    st.info(
+        "Guidance is layered: question-mark help gives a one-sentence definition, "
+        "What does this mean? panels show nearby formulas, and this guide keeps "
+        "the full explanation, example, and interpretation warning together."
+    )
+    search, category = st.columns((2, 1))
+    query = search.text_input(
+        "Search the Learning Guide",
+        key="learning_guide_search",
+        help="Searches terms, definitions, formulas, examples, and related words.",
+    )
+    section_choice = category.selectbox(
+        "Limit results to a topic",
+        ("All topics", *learning_sections()),
+        key="learning_guide_section",
+    )
+    matches = search_learning_terms(
+        query,
+        section=None if section_choice == "All topics" else section_choice,
+    )
+    result_word = "definition" if len(matches) == 1 else "definitions"
+    st.caption(f"Showing {len(matches)} {result_word}.")
+    if not matches:
+        st.warning(
+            "No definition matches that search. Try a shorter word or choose "
+            "All topics."
+        )
+    for item in matches:
+        with st.expander(f"{item.term} - {item.short}"):
+            st.write(item.detail)
+            st.caption(f"Dashboard location: {item.dashboard_tab}")
+            if item.formula:
+                st.markdown("**Formula or rule**")
+                st.code(item.formula, language=None)
+            if item.example:
+                st.markdown("**Small example**")
+                st.write(item.example)
+            if item.common_mistake:
+                st.markdown("**Common interpretation mistake**")
+                st.warning(item.common_mistake)
+
+    st.divider()
+    st.subheader("Rolling averages: responsiveness versus smoothing")
+    st.write(
+        "A forecast can react quickly to new information or smooth short-lived "
+        "movement, but it cannot maximize both at the same time. Window length, "
+        "weights, and alpha decide where a method sits on that trade-off."
+    )
+    st.caption(
+        "Alpha is a value from 0 to 1 that controls how strongly simple "
+        "exponential smoothing reacts to the newest information."
+    )
+    st.dataframe(
+        [
+            {
+                "method": item.name,
+                "formula": item.formula,
+                "responsiveness": item.responsiveness,
+                "smoothing": item.smoothing,
+                "learning use": item.best_teaching_use,
+                "caution": item.caution,
+            }
+            for item in FORECAST_METHOD_LESSONS
+        ],
+        hide_index=True,
+        width="stretch",
+    )
+    with st.expander("Walk through a changing-demand example"):
+        st.write(
+            "Suppose monthly demand is 20, 20, 20, and then 40 units. A short "
+            "average begins rising sooner because the new 40 is a large part of "
+            "its window. A longer average changes less because more older 20s "
+            "remain in the calculation. That stability is smoothing; the slower "
+            "reaction is lag."
+        )
+        st.write(
+            "The dashboard currently calculates a 3-month simple average as an "
+            "explainable baseline. Weighted and exponential methods are described "
+            "here for comparison, not presented as implemented forecast results."
+        )
+
+    st.divider()
+    st.subheader("Further study")
+    st.write(f"**{TEXTBOOK_NAME}, {TEXTBOOK_VERSION}**")
+    st.caption(
+        "This project is a guided introduction. The textbook provides deeper "
+        "coverage of forecasting, inventory, materials, and capacity planning."
+    )
+
+    st.divider()
+    st.subheader("Accessibility and interpretation checklist")
+    st.markdown(
+        "- Every input has a visible label; help is not conveyed by an icon alone.\n"
+        "- Exception metrics use words and counts, not color alone.\n"
+        "- Charts are followed by tables containing the same planning records.\n"
+        "- Units appear in metric labels, table fields, captions, or definitions.\n"
+        "- Keyboard users can reach native Streamlit controls and expanders.\n"
+        "- Source data, fictional assumptions, forecasts, requirements, and "
+        "feasible output are named separately."
+    )
 
 
 def _render_shared_scenario_controls() -> PlanningScenario:
@@ -184,10 +322,7 @@ def _render_shared_scenario_controls() -> PlanningScenario:
         forecast_origins(),
         index=len(forecast_origins()) - 1,
         key="scenario_forecast_origin",
-        help=(
-            "Pretend this historical month is today. The plan uses only the "
-            "approved information treatment at that starting point."
-        ),
+        help=help_text("forecast_origin"),
     )
 
     with st.sidebar.expander("1. Demand assumptions", expanded=True):
@@ -199,18 +334,19 @@ def _render_shared_scenario_controls() -> PlanningScenario:
             step=0.01,
             format="%.2f%%",
             key="scenario_market_share",
-            help="The fictional company's share of the national housing pace.",
+            help=help_text("market_share"),
         )
         allocation_cuts = st.slider(
-            "Customer allocation boundaries (%)",
+            "Customer allocation split points (%)",
             min_value=0,
             max_value=100,
             value=(50, 80),
             step=1,
             key="scenario_customer_allocations",
             help=(
-                "The first handle is the builder share. The space between handles "
-                "is the distributor share. The remainder is the remodeler share."
+                f"{help_text('customer_allocation')} The first point sets Building "
+                "Houses Company. The distance between the points sets Building "
+                "Supply Company. The remainder sets Building Remodeler."
             ),
         )
         first_cut, second_cut = allocation_cuts
@@ -219,15 +355,20 @@ def _render_shared_scenario_controls() -> PlanningScenario:
             "Building Supply Company": (second_cut - first_cut) / 100,
             "Building Remodeler": (100 - second_cut) / 100,
         }
+        st.caption(
+            f"Resulting allocation — Building Houses Company: {first_cut}% | "
+            f"Building Supply Company: {second_cut - first_cut}% | "
+            f"Building Remodeler: {100 - second_cut}%"
+        )
         units_per_home = {
             product_sku: float(
                 st.number_input(
-                    f"{product_sku} units per home",
+                    f"{PRODUCTS[product_sku]} ({product_sku}) units per home",
                     min_value=0.0,
                     value=DEFAULT_UNITS_PER_HOME[product_sku],
                     step=1.0,
                     key=f"scenario_units_{product_sku}",
-                    help=PRODUCTS[product_sku],
+                    help=f"{help_text('units_per_home')} Product: {PRODUCTS[product_sku]}.",
                 )
             )
             for product_sku in PRODUCTS
@@ -241,16 +382,17 @@ def _render_shared_scenario_controls() -> PlanningScenario:
             value=int(DEFAULT_SAFETY_STOCK_PERCENT),
             step=5,
             key="scenario_finished_safety",
-            help="Percentage of the following month's forecast kept as protection.",
+            help=help_text("safety_stock"),
         )
         finished_inventory = {
             product_sku: int(
                 st.number_input(
-                    f"Starting finished units — {product_sku}",
+                    f"Starting finished units — {PRODUCTS[product_sku]} ({product_sku})",
                     min_value=0,
                     value=DEFAULT_STARTING_INVENTORY[product_sku],
                     step=10,
                     key=f"scenario_finished_inventory_{product_sku}",
+                    help=help_text("sku"),
                 )
             )
             for product_sku in PRODUCTS
@@ -267,6 +409,7 @@ def _render_shared_scenario_controls() -> PlanningScenario:
                 "percentage": "Percentage of next month's need",
                 "statistical": "Demand and supplier variability",
             }[value],
+            help=help_text("material_safety_stock"),
         )
         material_percentage = st.slider(
             "Material safety stock (%)",
@@ -275,6 +418,8 @@ def _render_shared_scenario_controls() -> PlanningScenario:
             value=25,
             step=5,
             key="scenario_material_percentage",
+            help=help_text("percentage_material_safety_stock"),
+            disabled=material_method != "percentage",
         )
         service_level = st.selectbox(
             "Target material service level",
@@ -282,8 +427,24 @@ def _render_shared_scenario_controls() -> PlanningScenario:
             index=1,
             key="scenario_service_level",
             format_func=lambda value: f"{value:g}%",
-            help="Used only by the statistical material safety-stock method.",
+            help=help_text("service_level"),
+            disabled=material_method != "statistical",
         )
+        if material_method == "none":
+            st.caption(
+                "No material safety-stock input is active. The percentage and "
+                "service-level settings do not affect this scenario."
+            )
+        elif material_method == "percentage":
+            st.caption(
+                "The percentage input is active. Target service level applies "
+                "only to the statistical method."
+            )
+        else:
+            st.caption(
+                "Target service level is active. The percentage input applies "
+                "only to the percentage method."
+            )
         receipt_treatment = st.selectbox(
             "How should open supplier orders be counted?",
             RECEIPT_TREATMENTS,
@@ -292,12 +453,12 @@ def _render_shared_scenario_controls() -> PlanningScenario:
                 "full": "Count the full scheduled quantity",
                 "risk_adjusted": "Reduce it using supplier OTIF history",
             }[value],
-            help="OTIF means delivered on time and in full.",
+            help=help_text("risk_adjusted_receipt"),
         )
         material_inventory = {
             component_sku: int(
                 st.number_input(
-                    f"Starting material — {component_sku}",
+                    f"Starting material — {component.name} ({component_sku})",
                     min_value=0,
                     value=DEFAULT_MATERIAL_INVENTORY[component_sku],
                     step=50,
@@ -315,6 +476,7 @@ def _render_shared_scenario_controls() -> PlanningScenario:
             31,
             DEFAULT_WORKING_DAYS,
             key="scenario_working_days",
+            help=help_text("regular_capacity"),
         )
         shifts_per_day = st.slider(
             "Shifts per day",
@@ -322,6 +484,7 @@ def _render_shared_scenario_controls() -> PlanningScenario:
             3,
             DEFAULT_SHIFTS_PER_DAY,
             key="scenario_shifts",
+            help=help_text("regular_capacity"),
         )
         hours_per_shift = st.slider(
             "Hours per shift",
@@ -330,6 +493,7 @@ def _render_shared_scenario_controls() -> PlanningScenario:
             DEFAULT_HOURS_PER_SHIFT,
             0.5,
             key="scenario_shift_hours",
+            help=help_text("regular_capacity"),
         )
         downtime_percent = st.slider(
             "Planned downtime (%)",
@@ -338,6 +502,7 @@ def _render_shared_scenario_controls() -> PlanningScenario:
             int(DEFAULT_DOWNTIME_PERCENT),
             5,
             key="scenario_downtime",
+            help=help_text("planned_downtime"),
         )
         setup_hours = st.slider(
             "Setup hours per active product",
@@ -346,6 +511,7 @@ def _render_shared_scenario_controls() -> PlanningScenario:
             DEFAULT_SETUP_HOURS,
             1.0,
             key="scenario_setup_hours",
+            help=help_text("setup_time"),
         )
         overtime_hours = {
             work_center_id: float(
@@ -356,6 +522,7 @@ def _render_shared_scenario_controls() -> PlanningScenario:
                     0,
                     4,
                     key=f"scenario_overtime_{work_center_id}",
+                    help=help_text("effective_capacity"),
                 )
             )
             for work_center_id, work_center_name in WORK_CENTERS.items()
@@ -368,6 +535,7 @@ def _render_shared_scenario_controls() -> PlanningScenario:
                     value=DEFAULT_RUN_RATES[product_sku],
                     step=0.5,
                     key=f"scenario_run_rate_{product_sku}",
+                    help=help_text("run_rate"),
                 )
             )
             for product_sku in PRODUCTS
@@ -411,9 +579,20 @@ def _render_integrated_overview(
 
     st.header("Start here: follow one planning story")
     st.write(
-        "The dashboard starts with a national building-permit signal, translates it "
-        "into fictional company demand, decides what should be made and purchased, "
-        "and finally checks what the factory can actually build."
+        "The dashboard starts with a national building-permit signal, calculates "
+        "expected demand, applies fixed company variation to realized demand, "
+        "decides what should be made and purchased, and checks factory capacity."
+    )
+    _render_term_popover(
+        "What do these planning stages mean?",
+        (
+            "market_signal",
+            "demand_realization_factor",
+            "baseline_scenario",
+            "net_production_requirement",
+            "bom",
+            "capacity_feasible_production",
+        ),
     )
     st.info(
         "Use the controls on the left to create a working scenario. The baseline "
@@ -423,10 +602,11 @@ def _render_integrated_overview(
     st.subheader("How the pieces connect")
     st.markdown(
         "1. **Demand signal:** building permits provide an external market pace.\n"
-        "2. **Forecast:** unknown future permit values must be estimated.\n"
-        "3. **Inventory:** stock on hand reduces what must be produced.\n"
-        "4. **Materials:** the bill of materials determines what must be purchased.\n"
-        "5. **Capacity:** available work-center hours limit what can be built."
+        "2. **Demand realization:** fixed factors move company demand around expectation.\n"
+        "3. **Forecast:** future realized demand must be estimated.\n"
+        "4. **Inventory:** stock on hand reduces what must be produced.\n"
+        "5. **Materials:** the bill of materials determines what must be purchased.\n"
+        "6. **Capacity:** available work-center hours limit what can be built."
     )
 
     comparison_rows = _summary_comparison_rows(working, baseline)
@@ -462,12 +642,25 @@ def _render_integrated_overview(
         row for row in working.capacity_plan.work_centers if row["overloaded"]
     ]
     exception_columns = st.columns(4)
-    exception_columns[0].metric("Past-due purchase releases", len(past_due))
-    exception_columns[1].metric("Supplier receipts at risk", len(at_risk))
-    exception_columns[2].metric("Overloaded work-center months", len(overloaded))
+    exception_columns[0].metric(
+        "Past-due purchase releases",
+        len(past_due),
+        help=help_text("past_due_release"),
+    )
+    exception_columns[1].metric(
+        "Supplier receipts at risk",
+        len(at_risk),
+        help=help_text("risk_adjusted_receipt"),
+    )
+    exception_columns[2].metric(
+        "Overloaded work-center months",
+        len(overloaded),
+        help=help_text("overload"),
+    )
     exception_columns[3].metric(
         "Ending deferred production",
         f"{working.summary.ending_deferred_production_units:,}",
+        help=help_text("deferred_production"),
     )
     with st.expander("Inspect purchasing exceptions"):
         if past_due or at_risk:
@@ -497,14 +690,17 @@ def _render_integrated_overview(
     requirement.metric(
         "Unconstrained production requirement",
         f"{working.summary.net_production_requirement_units:,}",
+        help=help_text("net_production_requirement"),
     )
     feasible.metric(
         "Capacity-feasible production",
         f"{sum(row['planned_production_units'] for row in working.capacity_plan.products):,}",
+        help=help_text("capacity_feasible_production"),
     )
     deferred.metric(
         "Deferred at end of horizon",
         f"{sum(final_deferred.values()):,}",
+        help=help_text("deferred_production"),
     )
 
     st.subheader("Where each result comes from")
@@ -512,8 +708,8 @@ def _render_integrated_overview(
         [
             {
                 "step": "Demand signal",
-                "main input": "Fixed FRED PERMIT history",
-                "result": "Fictional monthly product demand",
+                "main input": "Fixed FRED history and realization factors",
+                "result": "Expected and realized fictional product demand",
             },
             {
                 "step": "Inventory",
@@ -632,9 +828,23 @@ def _render_integrated_demand(
     st.header("1. Where does company demand come from?")
     st.write(
         "Federal Reserve Economic Data (FRED) building permits are an external "
-        "market signal, not customer orders. This project converts that national "
-        "pace into fictional company demand "
-        "using the assumptions shown below."
+        "market signal, not customer orders. The project first calculates "
+        "FRED-driven expected demand, then applies committed static factors to "
+        "create fictional realized company demand."
+    )
+    _render_term_popover(
+        "What does this demand calculation mean?",
+        (
+            "fred_permit",
+            "saar",
+            "demand_lag",
+            "market_share",
+            "units_per_home",
+            "customer_allocation",
+            "fred_expected_demand",
+            "demand_realization_factor",
+            "internal_demand",
+        ),
     )
     assumptions = plan.scenario.demand
     st.dataframe(
@@ -650,9 +860,14 @@ def _render_integrated_demand(
                 "purpose": "Moves a permit signal to a later requested ship month.",
             },
             {
+                "assumption": "Static demand variation",
+                "working value": "Usually within ±15%; unusual months up to ±25%",
+                "purpose": "Keeps FRED central without making it equal company demand.",
+            },
+            {
                 "assumption": "Cancellations",
                 "working value": "None",
-                "purpose": "Keeps this teaching translation deterministic.",
+                "purpose": "Keeps the generated teaching demand repeatable.",
             },
         ],
         hide_index=True,
@@ -665,6 +880,9 @@ def _render_integrated_demand(
     product_choice = st.selectbox(
         "Product to explore in demand",
         ("All products", *PRODUCTS),
+        format_func=lambda value: (
+            value if value == "All products" else f"{value} - {PRODUCTS[value]}"
+        ),
     )
     selected = filter_demand(
         plan.demand_records,
@@ -672,10 +890,40 @@ def _render_integrated_demand(
         product_sku=None if product_choice == "All products" else product_choice,
     )
     summary = summarize_demand(selected)
-    source, periods, demand = st.columns(3)
+    comparison = monthly_demand_comparison(selected)
+    monthly_gap_percentages = [
+        abs(row["realized_demand_units"] - row["fred_expected_demand_units"])
+        / row["fred_expected_demand_units"]
+        * 100
+        for row in comparison
+        if row["fred_expected_demand_units"]
+    ]
+    average_monthly_gap = (
+        sum(monthly_gap_percentages) / len(monthly_gap_percentages)
+        if monthly_gap_percentages
+        else 0.0
+    )
+    source, periods, expected, demand, gap = st.columns(5)
     source.metric("Months in the FRED source", len(fred_records))
     periods.metric("Demand months displayed", len({row["period"] for row in selected}))
-    demand.metric("Fictional internal demand units", f"{summary.demand_units:,}")
+    expected.metric(
+        "FRED-driven expected units",
+        f"{summary.fred_expected_demand_units:,}",
+        help=help_text("fred_expected_demand"),
+    )
+    demand.metric(
+        "Realized fictional demand units",
+        f"{summary.demand_units:,}",
+        help=help_text("internal_demand"),
+    )
+    gap.metric(
+        "Average absolute monthly gap",
+        f"{average_monthly_gap:.1f}%",
+        help=(
+            "Average monthly percentage distance between FRED-driven expectation "
+            "and realized fictional demand for the selected records."
+        ),
+    )
     st.subheader("External permit pace")
     st.line_chart(
         [
@@ -689,10 +937,31 @@ def _render_integrated_demand(
         "SAAR means seasonally adjusted annual rate. It is an annualized pace, "
         "not the number of permits issued during that single month."
     )
-    st.subheader("Fictional monthly company demand")
-    st.line_chart(monthly_demand(selected), x="period", y="demand_units")
+    st.subheader("FRED-driven expectation versus realized company demand")
+    st.line_chart(
+        comparison,
+        x="period",
+        y=("fred_expected_demand_units", "realized_demand_units"),
+    )
+    st.caption(
+        "The gap comes from the committed static product-month factors. It is "
+        "repeatable and does not change when the dashboard reruns. Above- and "
+        "below-expectation months can offset each other in the total, so the "
+        "average absolute monthly gap shows their typical distance."
+    )
     with st.expander("Inspect demand calculation records"):
-        st.dataframe(selected, hide_index=True, width="stretch")
+        st.dataframe(
+            selected,
+            hide_index=True,
+            width="stretch",
+            column_config={
+                "fred_expected_demand_units": "FRED-driven expected units",
+                "realization_factor": st.column_config.NumberColumn(
+                    "Realization factor", format="%.4f"
+                ),
+                "demand_units": "Realized demand units",
+            },
+        )
 
 
 def _render_integrated_forecast(
@@ -703,8 +972,21 @@ def _render_integrated_forecast(
 
     st.header("2. What do we think will happen next?")
     st.write(
-        "A forecast is an estimate made before the actual value is known. Start "
+        "A forecast is an estimate made before realized demand is known. Start "
         "with simple methods so every result has a clear comparison point."
+    )
+    _render_term_popover(
+        "What does forecast performance mean?",
+        (
+            "forecast_origin",
+            "forecast_horizon",
+            "rolling_origin",
+            "known_driver",
+            "forecasted_driver",
+            "generated_backtest_actual",
+            "mae",
+            "bias",
+        ),
     )
     _render_forecast_baselines(plan.demand_records)
     st.divider()
@@ -723,6 +1005,15 @@ def _render_integrated_inventory(plan: IntegratedPlan) -> None:
         "The inventory plan begins with forecast demand, subtracts finished goods "
         "already available, and adds the selected safety-stock protection."
     )
+    _render_term_popover(
+        "What does the inventory calculation mean?",
+        (
+            "inventory_position",
+            "safety_stock",
+            "net_production_requirement",
+            "projected_ending_inventory",
+        ),
+    )
     st.caption(
         f"Working policy: {plan.scenario.finished_goods.safety_stock_percent:g}% "
         "of the following month's forecast. Scheduled finished-goods receipts are zero."
@@ -733,7 +1024,7 @@ def _render_integrated_inventory(plan: IntegratedPlan) -> None:
     production.metric(
         "Unconstrained production requirement",
         f"{summary.net_production_requirement_units:,}",
-        help="What should be produced before checking factory capacity.",
+        help=help_text("net_production_requirement"),
     )
     ending.metric(
         "Final projected finished inventory",
@@ -786,6 +1077,20 @@ def _render_integrated_procurement(plan: IntegratedPlan) -> None:
         "vinyl, slabs, frames, and hardware. Inventory and open supplier orders "
         "reduce what still needs to be purchased."
     )
+    _render_term_popover(
+        "What does the purchasing calculation mean?",
+        (
+            "bom",
+            "gross_material_requirement",
+            "scheduled_receipt",
+            "otif",
+            "material_safety_stock",
+            "statistical_safety_stock",
+            "service_level",
+            "purchase_receipt",
+            "order_release",
+        ),
+    )
     with st.expander("Start with the bill of materials"):
         st.dataframe(
             [
@@ -803,9 +1108,21 @@ def _render_integrated_procurement(plan: IntegratedPlan) -> None:
         )
     summary = summarize_procurement_plan(plan.procurement_records)
     actions, past_due, risk = st.columns(3)
-    actions.metric("Material purchase actions", summary.purchase_action_count)
-    past_due.metric("Past-due order releases", summary.past_due_action_count)
-    risk.metric("Supplier receipts reduced for risk", summary.receipt_at_risk_count)
+    actions.metric(
+        "Material purchase actions",
+        summary.purchase_action_count,
+        help=help_text("purchase_receipt"),
+    )
+    past_due.metric(
+        "Past-due order releases",
+        summary.past_due_action_count,
+        help=help_text("past_due_release"),
+    )
+    risk.metric(
+        "Supplier receipts reduced for risk",
+        summary.receipt_at_risk_count,
+        help=help_text("risk_adjusted_receipt"),
+    )
 
     st.subheader("How reliably have the fictional suppliers delivered?")
     st.caption(
@@ -890,20 +1207,35 @@ def _render_integrated_capacity(plan: IntegratedPlan) -> None:
         "available work-center hours can satisfy it. Units that do not fit are "
         "carried forward as deferred production."
     )
+    _render_term_popover(
+        "What does the capacity calculation mean?",
+        (
+            "work_center",
+            "effective_capacity",
+            "setup_time",
+            "run_rate",
+            "required_utilization",
+            "overload",
+            "capacity_factor",
+            "deferred_production",
+        ),
+    )
     summary = summarize_capacity_plan(plan.capacity_plan)
     overloads, deferred, maximum = st.columns(3)
     overloads.metric(
         "Overloaded work-center months",
         summary.overloaded_work_center_months,
+        help=help_text("overload"),
     )
     deferred.metric(
         "Production still deferred at the end",
         f"{summary.ending_deferred_units:,}",
+        help=help_text("deferred_production"),
     )
     maximum.metric(
         "Highest required utilization",
         f"{summary.maximum_required_utilization_percent:.1f}%",
-        help="100% means the requested setup and runtime exactly use available hours.",
+        help=help_text("required_utilization"),
     )
     work_center_id = st.selectbox(
         "Work center to explore",
@@ -971,12 +1303,13 @@ def _render_integrated_capacity(plan: IntegratedPlan) -> None:
 def _render_internal_demand() -> tuple[
     list[ProcessedObservation], list[DemandRecord], DemandAssumptions
 ] | None:
-    """Render a deterministic scenario from the fixed FRED snapshot."""
+    """Render a repeatable scenario from fixed FRED and realization inputs."""
 
-    st.header("FRED-driven internal demand")
+    st.header("FRED-anchored expected and realized demand")
     st.write(
         "The source is a fixed FRED PERMIT snapshot covering 2000 through 2025. "
-        "Sliders change visible business assumptions; no random values are used."
+        "Sliders change visible business assumptions; committed variation factors "
+        "stay fixed and no random values are generated at runtime."
     )
     st.caption(
         f"A permit month's seasonally adjusted annual pace drives demand "
@@ -994,7 +1327,7 @@ def _render_internal_demand() -> tuple[
         help="Share of the national monthly housing pace addressable by the company.",
     )
     allocation_cuts = st.slider(
-        "Customer allocation boundaries (%)",
+        "Customer allocation split points (%)",
         min_value=0,
         max_value=100,
         value=(50, 80),
@@ -1049,7 +1382,11 @@ def _render_internal_demand() -> tuple[
         "Demand customer", ("All customers", *CUSTOMERS)
     )
     product_choice = st.selectbox(
-        "Demand product", ("All products", *PRODUCTS)
+        "Demand product",
+        ("All products", *PRODUCTS),
+        format_func=lambda value: (
+            value if value == "All products" else f"{value} - {PRODUCTS[value]}"
+        ),
     )
     selected = filter_demand(
         records,
@@ -1058,10 +1395,13 @@ def _render_internal_demand() -> tuple[
     )
     summary = summarize_demand(selected)
 
-    source, months, demand = st.columns(3)
+    source, months, expected, demand = st.columns(4)
     source.metric("FRED source months", len(fred_records))
     months.metric("Derived demand months", len({row["period"] for row in selected}))
-    demand.metric("Internal demand units", f"{summary.demand_units:,}")
+    expected.metric(
+        "FRED-driven expected units", f"{summary.fred_expected_demand_units:,}"
+    )
+    demand.metric("Realized fictional demand units", f"{summary.demand_units:,}")
 
     st.subheader("FRED PERMIT source")
     st.line_chart(
@@ -1074,8 +1414,12 @@ def _render_internal_demand() -> tuple[
     )
     st.caption("Thousands of housing units at a seasonally adjusted annual rate.")
 
-    st.subheader("Monthly internal demand")
-    st.line_chart(monthly_demand(selected), x="period", y="demand_units")
+    st.subheader("Expected versus realized monthly demand")
+    st.line_chart(
+        monthly_demand_comparison(selected),
+        x="period",
+        y=("fred_expected_demand_units", "realized_demand_units"),
+    )
 
     st.subheader("Order details")
     st.dataframe(
@@ -1104,8 +1448,14 @@ def _render_internal_demand() -> tuple[
             "units_per_home": st.column_config.NumberColumn(
                 "Units per home", format="%.1f"
             ),
+            "fred_expected_demand_units": st.column_config.NumberColumn(
+                "FRED-driven expected demand", format="%d"
+            ),
+            "realization_factor": st.column_config.NumberColumn(
+                "Realization factor", format="%.4f"
+            ),
             "demand_units": st.column_config.NumberColumn(
-                "Internal demand", format="%d"
+                "Realized fictional demand", format="%d"
             ),
             "unit": "Unit",
         },
@@ -1122,7 +1472,7 @@ def _render_forecast_baselines(demand_records: list[DemandRecord]) -> None:
         "demand. The common evaluation period is January 2020 through December 2025."
     )
     st.caption(
-        "Error = actual - forecast. Positive error means demand was underforecast; "
+        "Error = realized demand - forecast. Positive error means demand was underforecast; "
         "negative error means it was overforecast."
     )
     records, summaries = compare_baselines(demand_records)
@@ -1183,18 +1533,22 @@ def _render_forecast_baselines(demand_records: list[DemandRecord]) -> None:
         f"{summary.bias:+,.1f}" if summary.bias is not None else "Not available",
     )
 
-    st.subheader("Actual versus forecast")
+    st.subheader("Realized fictional demand versus forecast")
+    st.caption(
+        "Realized demand includes the committed static product-month variation "
+        "and is treated as the known outcome for this historical backtest."
+    )
     st.line_chart(
         [
             {
                 "period": record["period"],
-                "actual_units": record["actual_units"],
+                "realized_demand_units": record["actual_units"],
                 "forecast_units": record["forecast_units"],
             }
             for record in selected
         ],
         x="period",
-        y=("actual_units", "forecast_units"),
+        y=("realized_demand_units", "forecast_units"),
     )
     st.dataframe(
         selected,
@@ -1206,7 +1560,7 @@ def _render_forecast_baselines(demand_records: list[DemandRecord]) -> None:
             "product_name": "Product",
             "method": None,
             "method_label": "Method",
-            "actual_units": "Actual units",
+            "actual_units": "Realized fictional demand units",
             "forecast_units": st.column_config.NumberColumn(
                 "Forecast units", format="%.1f"
             ),
@@ -1221,14 +1575,14 @@ def _render_forecast_baselines(demand_records: list[DemandRecord]) -> None:
 
     with st.expander("How the trailing 3-month average works"):
         st.code(
-            "forecast(t) = [actual(t-1) + actual(t-2) + actual(t-3)] / 3",
+            "forecast(t) = [realized(t-1) + realized(t-2) + realized(t-3)] / 3",
             language="text",
         )
         st.write(
             "A three-month window smooths short-term movement but can lag when "
-            "demand rises or falls for several months. The future Learning Guide "
-            "will compare other window lengths, weighted averages, and exponential "
-            "averages."
+            "demand rises or falls for several months. The Learning Guide compares "
+            "other window lengths, weighted moving averages, and simple exponential "
+            "smoothing."
         )
 
 
@@ -1243,12 +1597,14 @@ def _render_fred_informed_forecast(
     st.write(
         "This rolling-origin backtest starts with the FRED information available "
         "at each origin, then applies the same lag and scenario assumptions used "
-        "to calculate internal demand."
+        "to calculate expected demand. Realized company demand also contains the "
+        "static product-month variation that the forecast does not know."
     )
     st.caption(
         "Demand horizons 1-3 use already-observed lagged permit values. Horizons "
         f"4-{MAX_FORECAST_HORIZON} forecast the unknown permit driver with the "
-        f"{DRIVER_METHOD_LABEL.lower()}."
+        f"{DRIVER_METHOD_LABEL.lower()}. Both groups are scored against realized "
+        "fictional demand."
     )
     records = calculate_driver_forecasts(
         fred_records,
@@ -1264,8 +1620,8 @@ def _render_fred_informed_forecast(
         "Known-driver MAE",
         f"{known.mean_absolute_error:,.1f}",
         help=(
-            "This is zero by construction because the demand driver is already "
-            "known; it demonstrates calculation mechanics, not predictive skill."
+            "The FRED driver is already known, but future company-specific demand "
+            "variation is not. This error isolates that remaining difference."
         ),
     )
     forecasted_count.metric(
@@ -1274,7 +1630,10 @@ def _render_fred_informed_forecast(
     forecasted_mae.metric(
         "Forecasted-driver MAE",
         f"{forecasted.mean_absolute_error:,.1f}",
-        help="Mean absolute product-demand error where the FRED driver was unknown.",
+        help=(
+            "Mean absolute realized-demand error when both the future FRED driver "
+            "and company-specific demand variation were unknown."
+        ),
     )
 
     st.subheader("Performance by demand horizon")
@@ -1328,20 +1687,32 @@ def _render_fred_informed_forecast(
     )
     bias.metric("Selected horizon bias", f"{selected_summary.bias:+,.1f}")
 
-    st.subheader("Actual versus FRED-informed forecast")
+    st.subheader("Realized fictional demand versus FRED-informed forecast")
+    st.caption(
+        "Realized fictional demand is the static known outcome used to score this "
+        "backtest. It is not observed company demand."
+    )
     st.line_chart(
         [
             {
                 "demand_period": record["demand_period"],
-                "actual_units": record["actual_demand_units"],
+                "realized_demand_units": record["actual_demand_units"],
                 "forecast_units": record["forecast_demand_units"],
             }
             for record in selected
         ],
         x="demand_period",
-        y=("actual_units", "forecast_units"),
+        y=("realized_demand_units", "forecast_units"),
     )
-    st.dataframe(selected, hide_index=True, width="stretch")
+    st.dataframe(
+        selected,
+        hide_index=True,
+        width="stretch",
+        column_config={
+            "actual_demand_units": "Realized fictional demand units",
+            "forecast_demand_units": "Forecast demand units",
+        },
+    )
 
     st.warning(
         "Teaching limitation: the evaluation uses one fixed, currently revised "

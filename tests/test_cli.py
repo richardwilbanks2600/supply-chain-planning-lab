@@ -12,7 +12,7 @@ def test_installed_command_smoke_check_does_not_call_fred(
 
     captured = capsys.readouterr()
     assert exit_code == 0
-    assert "Supply Chain Planning Lab 0.10.0" in captured.out
+    assert "Supply Chain Planning Lab 0.11.0" in captured.out
     assert "FRED_API_KEY: not configured" in captured.out
 
 
@@ -134,7 +134,9 @@ def test_demand_command_loads_fixed_data_without_an_api_key(
     assert "Source: fixed FRED PERMIT snapshot" in captured.out
     assert "Selected records: 1" in captured.out
     assert "Cancellations: none" in captured.out
-    assert "Internal demand units: 381" in captured.out
+    assert "FRED-driven expected units: 381" in captured.out
+    assert "Realized fictional demand units: 373" in captured.out
+    assert "Variation: fixed product-month factors" in captured.out
 
 
 def test_forecast_command_compares_baselines_without_an_api_key(
@@ -190,7 +192,7 @@ def test_fred_forecast_command_evaluates_driver_without_an_api_key(
     captured = capsys.readouterr()
     assert exit_code == 0
     assert "Forecast origins: 2019-12 through 2024-12" in captured.out
-    assert "known,549,0.0,+0.0" in captured.out
+    assert "known,549,21.9,-2.8" in captured.out
     assert "forecasted,1647," in captured.out
     assert "Selected forecasts: 61" in captured.out
     assert "2019-12,4,2020-04,2020-01,forecasted,WIN-2436" in captured.out
@@ -251,8 +253,8 @@ def test_procurement_command_calculates_bom_and_supplier_risk_without_api_key(
     assert "Material safety-stock method: statistical" in captured.out
     assert "Scheduled-receipt treatment: risk_adjusted" in captured.out
     assert "GLASS-SQFT,6,0.667,0.981,0.500" in captured.out
-    assert "GLASS-SQFT,0,2536,14285" in captured.out
-    assert "2025-01,GLASS-SQFT,8490,5000,4000,2000,14285" in captured.out
+    assert "GLASS-SQFT,0,2536,14422" in captured.out
+    assert "2025-01,GLASS-SQFT,8490,5000,4000,2000,14422" in captured.out
 
 
 def test_capacity_command_allocates_shared_work_center_without_api_key(

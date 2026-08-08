@@ -1,3 +1,5 @@
+import pytest
+
 from supply_chain_planning_lab.demand import (
     default_assumptions,
     generate_demand,
@@ -44,7 +46,11 @@ def test_known_and_forecasted_driver_manual_example() -> None:
 
     assert len(records) == 12
     assert {record["driver_status"] for record in records[:9]} == {"known"}
-    assert all(record["error_units"] == 0 for record in records[:9])
+    assert all(record["driver_error_saar_thousands"] == 0 for record in records[:9])
+    assert any(record["error_units"] != 0 for record in records[:9])
+    assert records[0]["actual_demand_units"] == 458
+    assert records[0]["forecast_demand_units"] == 450
+    assert records[0]["error_units"] == 8
     horizon_four = filter_driver_forecasts(
         records, product_sku="WIN-2436", horizon_months=4
     )
@@ -61,15 +67,15 @@ def test_known_and_forecasted_driver_manual_example() -> None:
             "driver_error_saar_thousands": 100.0,
             "product_sku": "WIN-2436",
             "product_name": "24 x 36 Vinyl Window",
-            "actual_demand_units": 550,
-            "forecast_demand_units": 500,
-            "error_units": 50,
-            "absolute_error_units": 50,
+                "actual_demand_units": 549,
+                "forecast_demand_units": 500,
+                "error_units": 49,
+                "absolute_error_units": 49,
         }
     ]
 
 
-def test_default_backtest_has_approved_grid_and_zero_known_error() -> None:
+def test_default_backtest_separates_known_driver_from_realized_demand_error() -> None:
     records = calculate_driver_forecasts(
         load_fred_snapshot(),
         load_default_demand(),
@@ -80,8 +86,8 @@ def test_default_backtest_has_approved_grid_and_zero_known_error() -> None:
     known = summarize_driver_status(records, "known")
     forecasted = summarize_driver_status(records, "forecasted")
     assert known.forecast_count == 549
-    assert known.mean_absolute_error == 0.0
-    assert known.bias == 0.0
+    assert known.mean_absolute_error == pytest.approx(21.8707, abs=0.0001)
+    assert known.bias == pytest.approx(-2.7814, abs=0.0001)
     assert forecasted.forecast_count == 1_647
     assert forecasted.mean_absolute_error is not None
     assert forecasted.mean_absolute_error > 0

@@ -63,11 +63,24 @@ def test_dashboard_starts_without_contacting_fred(monkeypatch) -> None:
     assert "3. How much finished product should we make?" in headers
     assert "4. What materials should we purchase, and when?" in headers
     assert "5. What can the factory actually build?" in headers
+    assert "Learning Guide: planning terms in plain language" in headers
     assert any(
-        metric.label == "Fictional internal demand units" for metric in app.metric
+        metric.label == "Realized fictional demand units" for metric in app.metric
+    )
+    assert any(metric.label == "FRED-driven expected units" for metric in app.metric)
+    assert any(
+        metric.label == "Average absolute monthly gap" for metric in app.metric
+    )
+    assert any(
+        metric.label == "Known-driver MAE" and metric.value != "0.0"
+        for metric in app.metric
     )
     assert any(metric.label == "Mean absolute error" for metric in app.metric)
     assert any(slider.label == "Company market share (%)" for slider in app.slider)
+    assert any(
+        slider.label == "Customer allocation split points (%)"
+        for slider in app.slider
+    )
     assert any(selectbox.label == "Forecast method" for selectbox in app.selectbox)
     assert any(
         selectbox.label == "FRED-informed forecast product"
@@ -106,6 +119,72 @@ def test_dashboard_starts_without_contacting_fred(monkeypatch) -> None:
     assert any(
         metric.label == "Overloaded work-center months" for metric in app.metric
     )
+    assert any(
+        text_input.label == "Search the Learning Guide"
+        for text_input in app.text_input
+    )
+    assert any(
+        selectbox.label == "Limit results to a topic"
+        for selectbox in app.selectbox
+    )
+    markdown_values = {item.value for item in app.markdown}
+    assert "**Operations and Supply Chain Management, 7th Edition**" in markdown_values
+    assert not any("future Learning Guide" in value for value in markdown_values)
+    subheaders = {item.value for item in app.subheader}
+    assert "FRED-driven expectation versus realized company demand" in subheaders
+    assert "Realized fictional demand versus forecast" in subheaders
+    assert "Realized fictional demand versus FRED-informed forecast" in subheaders
+    captions = {item.value for item in app.caption}
+    assert (
+        "Resulting allocation — Building Houses Company: 50% | "
+        "Building Supply Company: 30% | Building Remodeler: 20%"
+    ) in captions
+    assert (
+        "The percentage input is active. Target service level applies only to "
+        "the statistical method."
+    ) in captions
+
+
+def test_material_policy_enables_only_relevant_input(monkeypatch) -> None:
+    """Keep inactive teaching assumptions visibly inactive."""
+
+    monkeypatch.delenv("FRED_API_KEY", raising=False)
+    dashboard = (
+        Path(__file__).parents[1]
+        / "src"
+        / "supply_chain_planning_lab"
+        / "dashboard.py"
+    )
+    app = AppTest.from_file(str(dashboard)).run(timeout=10)
+
+    percentage = next(
+        slider for slider in app.slider if slider.label == "Material safety stock (%)"
+    )
+    service_level = next(
+        selectbox
+        for selectbox in app.selectbox
+        if selectbox.label == "Target material service level"
+    )
+    assert not percentage.disabled
+    assert service_level.disabled
+
+    method = next(
+        selectbox
+        for selectbox in app.selectbox
+        if selectbox.label == "Material safety-stock method"
+    )
+    method.select("statistical").run(timeout=10)
+
+    percentage = next(
+        slider for slider in app.slider if slider.label == "Material safety stock (%)"
+    )
+    service_level = next(
+        selectbox
+        for selectbox in app.selectbox
+        if selectbox.label == "Target material service level"
+    )
+    assert percentage.disabled
+    assert not service_level.disabled
 
 
 def test_market_share_slider_recalculates_internal_demand(monkeypatch) -> None:
@@ -120,7 +199,7 @@ def test_market_share_slider_recalculates_internal_demand(monkeypatch) -> None:
     baseline = next(
         metric.value
         for metric in app.metric
-        if metric.label == "Fictional internal demand units"
+        if metric.label == "Realized fictional demand units"
     )
 
     market_share = next(
@@ -131,7 +210,7 @@ def test_market_share_slider_recalculates_internal_demand(monkeypatch) -> None:
     changed = next(
         metric.value
         for metric in app.metric
-        if metric.label == "Fictional internal demand units"
+        if metric.label == "Realized fictional demand units"
     )
     changed_units = int(changed.replace(",", ""))
     baseline_units = int(baseline.replace(",", ""))
@@ -147,6 +226,6 @@ def test_market_share_slider_recalculates_internal_demand(monkeypatch) -> None:
     restored = next(
         metric.value
         for metric in app.metric
-        if metric.label == "Fictional internal demand units"
+        if metric.label == "Realized fictional demand units"
     )
     assert restored == baseline

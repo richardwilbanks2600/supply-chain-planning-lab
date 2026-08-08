@@ -18,7 +18,7 @@ comparison occurs at product-total level so rounding differences among
 customers do not obscure the baseline methods.
 
 The common evaluation period is January 2020 through December 2025. Each
-method uses earlier actual internal demand as required and produces one
+method uses earlier realized fictional demand as required and produces one
 forecast per product and evaluation month.
 
 ## Approved baseline methods
@@ -26,7 +26,7 @@ forecast per product and evaluation month.
 ### Previous month
 
 ```text
-forecast(t) = actual(t - 1 month)
+forecast(t) = realized demand(t - 1 month)
 ```
 
 This method responds quickly but carries short-term increases or decreases
@@ -35,7 +35,7 @@ directly into the next month.
 ### Same month last year
 
 ```text
-forecast(t) = actual(t - 12 months)
+forecast(t) = realized demand(t - 12 months)
 ```
 
 This is the primary baseline. It preserves yearly timing patterns and is easy
@@ -48,7 +48,7 @@ the comparison may show that a shorter-history baseline performs better.
 ### Trailing three-month average
 
 ```text
-forecast(t) = [actual(t-1) + actual(t-2) + actual(t-3)] / 3
+forecast(t) = [realized(t-1) + realized(t-2) + realized(t-3)] / 3
 ```
 
 This method smooths short-term variation. It can lag during sustained rises or
@@ -59,7 +59,7 @@ They do not use the FRED source value for the forecast month.
 
 ## Manual example
 
-Assume a product has these actual values:
+Assume a product has these realized fictional values:
 
 | Period | Actual units |
 | --- | ---: |
@@ -79,7 +79,7 @@ For January 2024:
 ## Approved error measures
 
 ```text
-error = actual - forecast
+error = realized demand - forecast
 absolute error = |error|
 MAE = average absolute error
 bias = average error
@@ -94,7 +94,7 @@ forecast values and metrics to one decimal place.
 
 ## Relationship to FRED
 
-The actual internal-demand history is derived from the approved FRED market-
+The realized internal-demand history is derived from the approved FRED market-
 pace model, so these baselines remain indirectly tied to FRED. They
 intentionally use only past internal demand to establish a fair benchmark.
 
@@ -121,22 +121,21 @@ baselines.
 - Prediction intervals or statistical significance tests
 - Inventory, production, capacity, or optimization
 
-## Future rolling-average learning section
+## Related rolling-average learning section
 
-The final Learning Guide milestone will compare different simple-moving-
-average window lengths plus weighted and exponential averages. It will explain
+The Milestone 10 Learning Guide compares different simple-moving-average window
+lengths, weighted moving averages, and simple exponential smoothing. It explains
 the mathematics and the tradeoff between responsiveness and smoothing. That
-future explanation does not change the approved three-month baseline in this
-milestone.
+explanation does not change the approved three-month baseline in this milestone.
 
 ## Acceptance criteria
 
-1. Every forecast uses only actual demand preceding its forecast period.
+1. Every forecast uses only generated internal demand preceding its forecast period.
 2. All methods are evaluated over January 2020 through December 2025 at
-   product-month grain.
+   product-month level.
 3. The three methods match the manual example exactly.
 4. Error signs, MAE, and bias follow the approved definitions.
 5. CLI and dashboard calculations share the same forecasting module.
-6. Dashboard slider changes recalculate actual demand and all baselines.
-7. Forecasts and actuals are visually and textually distinguishable.
+6. Dashboard slider changes recalculate realized fictional demand and all baselines.
+7. Forecasts and realized fictional demand are visually and textually distinguishable.
 8. Tests require no API key and never contact FRED.

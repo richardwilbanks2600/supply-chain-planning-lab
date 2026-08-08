@@ -21,7 +21,8 @@ shows how a change to a business assumption moves through:
 
 ```text
 FRED market signal
-    -> fictional internal demand
+    -> FRED-driven expected demand
+    -> static realized fictional demand
     -> demand forecast
     -> inventory and production requirement
     -> material and supplier plan
@@ -115,8 +116,8 @@ prompts for the learner to inspect assumptions and trade-offs.
 - Do not use color as the only indication of an exception.
 - Keep source values, assumptions, requirements, feasible output, and hindsight
   actuals visibly distinct.
-- Use help text for immediate definitions and reserve the complete terminology
-  system for Milestone 10.
+- Use help text for immediate definitions and the Milestone 10 Learning Guide
+  for the complete maintained terminology system.
 
 ## Downloads
 
@@ -132,13 +133,14 @@ No download contains a FRED API key or causes an external request.
 
 ## Interpretation limits
 
-- The integrated plan remains a deterministic educational scenario.
+- The integrated plan remains a repeatable educational scenario with no runtime randomness.
 - The baseline is a comparison reference, not an industry benchmark.
 - Session-only controls are lost when the dashboard session ends.
 - Unconstrained procurement and inventory requirements are not automatically
   reconciled to constrained production output.
 - No optimization, database, deployment, or multi-user collaboration is added.
-- Complete term definitions and guided learning content remain Milestone 10.
+- Complete term definitions and guided learning content are implemented in
+  Milestone 10 without changing this milestone's planning calculations.
 
 ## Acceptance criteria
 
